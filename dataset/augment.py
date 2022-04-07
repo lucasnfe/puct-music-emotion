@@ -1,0 +1,119 @@
+#
+# Clean MIDI data to:
+# 1) Remove all pieces that are not in common time (i.e., 4/4)
+# 2) Remove all non-piano tracks
+# 3) Combine multiple piano tracks into a single one
+#
+# Lucas N. Ferreira
+# lucasnfe@gmail.com
+#
+#
+
+import os
+import copy
+import pretty_midi
+import numpy as np
+import multiprocessing as mp
+
+from utils import traverse_dir
+
+# Range of transposition intervals (in semi-tones)
+transpose_intervals = range(-4, 5)
+
+# Range of strech factors
+stretch_factors = [1.0, 1.125, 1.25]
+
+def transpose(mid, interval):
+    # Transpose all pitched notes
+    for instrument in mid.instruments:
+        if not instrument.is_drum:
+            for note in instrument.notes:
+                note.pitch += interval
+
+def strech(mid, stretch_factor):
+   # Strech time of all notes
+    for instrument in mid.instruments:
+        for note in instrument.notes:
+            # stretch note start time
+            note.start *= stretch_factor
+
+            # stretch note end time
+            note.end *= stretch_factor
+
+def proc_one(path_infile, path_outfile):
+    print('----')
+    print(' >', path_infile)
+
+    original_mid = pretty_midi.PrettyMIDI(midi_file=path_infile)
+
+    # Transpose midi
+    for interval in transpose_intervals:
+        # Make a copy of the original midi
+        transpose_mid = copy.deepcopy(original_mid)
+
+        # Transpose midi
+        transpose(transpose_mid, interval)
+
+        if interval < 0:
+            interval_suffix = "_b_" + str(abs(interval))
+        elif interval == 0:
+            interval_suffix = "_original"
+        elif interval > 0:
+            interval_suffix = "_#_" + str(abs(interval))
+
+        # Strech midi
+        for factor in stretch_factors:
+            transposed_streched_mid = copy.deepcopy(transpose_mid)
+
+            # Strech midi
+            strech(transposed_streched_mid, factor)
+
+            if factor < 1.0:
+                strech_suffix = "_fast_" + str(int(factor * 100))
+            elif factor == 1.0:
+                strech_suffix = "_original"
+            elif factor > 1.0:
+                strech_suffix = "_slow_" + str(int(factor * 100))
+
+            name_outfile, _ = os.path.splitext(path_outfile)
+            new_path_outfile = name_outfile + interval_suffix + strech_suffix + ".mid"
+
+            # mkdir
+            fn = os.path.basename(new_path_outfile)
+            os.makedirs(new_path_outfile[:-len(fn)], exist_ok=True)
+
+            # save
+            print(' >', new_path_outfile)
+            transposed_streched_mid.write(new_path_outfile)
+
+if __name__ == '__main__':
+    # paths
+    path_indir = './midi_clean'
+    path_outdir = './midi_augmented'
+
+    os.makedirs(path_outdir, exist_ok=True)
+
+    # list files
+    midifiles = traverse_dir(
+        path_indir,
+        is_pure=True,
+        is_sort=True)
+    n_files = len(midifiles)
+    print('num fiels:', n_files)
+
+    # collect
+    data = []
+    for fidx in range(n_files):
+        path_midi = midifiles[fidx]
+        print('{}/{}'.format(fidx, n_files))
+
+        # paths
+        path_infile = os.path.join(path_indir, path_midi)
+        path_outfile = os.path.join(path_outdir, path_midi)
+
+        # append
+        data.append([path_infile, path_outfile])
+
+    # run, multi-thread
+    pool = mp.Pool()
+    pool.starmap(proc_one, data)

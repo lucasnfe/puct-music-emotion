@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import pickle
 import torch
 import argparse
 
@@ -55,20 +56,23 @@ def train(model, train_data, test_data, epochs, lr, save_to):
         print('-' * 89)
 
         # Advance one epoch of the learning rate scheduler
-        scheduler.step()
+        #scheduler.step()
 
     return best_model
 
-def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, log_interval=100):
+def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, log_interval=10):
     model.train()
     start_time = time.time()
 
+    log_interval = len(train_data)//log_interval
+
     total_loss = 0
-    for batch, (x, y) in enumerate(train_data):
+    for batch, (x, y, mask) in enumerate(train_data):
         # Forward pass
         x = x.to(device)
         y = y.to(device)
-        y_hat = model(x)
+        mask = mask.to(device)
+        y_hat = model(x, mask)
 
         # Backward pass
         optimizer.zero_grad()
@@ -106,12 +110,13 @@ def evaluate(model, test_data, criterion):
     total_loss = 0
     total_samples = 0
     with torch.no_grad():
-        for batch, (x, y) in enumerate(test_data):
+        for batch, (x, y, mask) in enumerate(test_data):
             x = x.to(device)
             y = y.to(device)
+            mask = mask.to(device)
 
             # Evaluate
-            y_hat = model(x)
+            y_hat = model(x, mask)
             loss = criterion(y_hat.view(-1, vocab_size), y.view(-1))
 
             total_loss += x.shape[0] * loss.item()
@@ -155,7 +160,7 @@ if __name__ == '__main__':
     # Build linear transformer
     model = MusicGenerator(n_tokens=vocab_size,
                             d_query=args.d_query,
-                            d_model=args.d_query * opt.n_heads,
+                            d_model=args.d_query * args.n_heads,
                             seq_len=args.seq_len,
                      attention_type="causal-linear",
                            n_layers=args.n_layers,

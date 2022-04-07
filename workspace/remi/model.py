@@ -58,13 +58,18 @@ class MusicGenerator(torch.nn.Module):
         hidden_size = n_heads * d_query
         self.predictor = torch.nn.Linear(hidden_size, n_tokens)
 
-    def forward(self, x):
+    def forward(self, x, length_mask=None):
         x = x.view(x.shape[0], -1)
         x = self.value_embedding(x)
         x = self.pos_embedding(x)
 
         triangular_mask = TriangularCausalMask(x.shape[1], device=x.device)
-        y_hat = self.transformer(x, attn_mask=triangular_mask)
+        
+        if length_mask is not None:
+            lengths = (length_mask == 1.).sum(dim=1)
+            length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
+        
+        y_hat = self.transformer(x, attn_mask=triangular_mask, length_mask=length_mask)
         y_hat = self.predictor(y_hat)
 
         return y_hat

@@ -321,11 +321,11 @@ if __name__ == '__main__':
         print('{}/{}'.format(fidx, n_files))
 
         # paths
-        out_filename, _ = os.path.splitext(args.path_outdir)
-        path_outfile = '{}.txt'.format(out_filename)
-
         path_infile = os.path.join(args.path_indir, path_midi)
-        path_outfile = os.path.join(path_outfile, path_midi)
+        path_outfile = os.path.join(args.path_outdir, path_midi)
+
+        out_filename, _ = os.path.splitext(path_outfile)
+        path_outfile = '{}.txt'.format(out_filename)
 
         # append
         data.append([path_infile, path_outfile])

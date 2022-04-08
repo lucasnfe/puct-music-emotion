@@ -11,6 +11,7 @@
 
 import os
 import copy
+import argparse
 import pretty_midi
 import numpy as np
 import multiprocessing as mp
@@ -93,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_outdir', type=str, required=True)
     args = parser.parse_args()
 
-    os.makedirs(path_outdir, exist_ok=True)
+    os.makedirs(args.path_outdir, exist_ok=True)
 
     # list files
     midifiles = traverse_dir(

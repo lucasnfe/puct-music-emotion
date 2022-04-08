@@ -75,7 +75,7 @@ def clean(path_infile, path_outfile):
 
 if __name__ == '__main__':
     # Parse arguments
-    parser = argparse.ArgumentParser(description='midi_encoder.py')
+    parser = argparse.ArgumentParser(description='clean.py')
     parser.add_argument('--path_indir', type=str, required=True)
     parser.add_argument('--path_outdir', type=str, required=True)
     args = parser.parse_args()
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         is_pure=True,
         is_sort=True)
     n_files = len(midifiles)
-    print('num fiels:', n_files)
+    print('num files:', n_files)
 
     # collect
     data = []

@@ -14,13 +14,11 @@ import argparse
 import pretty_midi
 import multiprocessing as mp
 
-from utils import traverse_dir
-
 RANGE_NOTE_ON = 128
 RANGE_NOTE_OFF = 128
 RANGE_VEL = 32
 RANGE_TIME_SHIFT = 100
-RANGE_SPECIAL = 3 #START, END, PAD
+RANGE_SPECIAL = 2
 
 START_IDX = {
     'note_on': 0,
@@ -297,39 +295,3 @@ def decode_midi(idx_array, file_path=None):
 
     return mid
 
-if __name__ == '__main__':
-    # Parse arguments
-    parser = argparse.ArgumentParser(description='encoder.py')
-    parser.add_argument('--path_indir', type=str, required=True)
-    parser.add_argument('--path_outdir', type=str, required=True)
-    args = parser.parse_args()
-
-    os.makedirs(args.path_outdir, exist_ok=True)
-
-    # list files
-    midifiles = traverse_dir(
-        args.path_indir,
-        is_pure=True,
-        is_sort=True)
-    n_files = len(midifiles)
-    print('num files:', n_files)
-
-    # collect
-    data = []
-    for fidx in range(n_files):
-        path_midi = midifiles[fidx]
-        print('{}/{}'.format(fidx, n_files))
-
-        # paths
-        path_infile = os.path.join(args.path_indir, path_midi)
-        path_outfile = os.path.join(args.path_outdir, path_midi)
-
-        out_filename, _ = os.path.splitext(path_outfile)
-        path_outfile = '{}.txt'.format(out_filename)
-
-        # append
-        data.append([path_infile, path_outfile])
-
-    # run, multi-thread
-    pool = mp.Pool()
-    pool.starmap(encode_midi, data)

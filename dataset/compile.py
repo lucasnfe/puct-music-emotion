@@ -4,12 +4,12 @@ import numpy as np
 
 from utils import traverse_dir
 
-PAD_TOKEN = 389
+PAD_TOKEN = 390
 
 def load_events(path_infile):
     events = []
     with open(path_infile) as f:
-        events = np.array([int(token) for token in f.read().split()])
+        events = [int(token) for token in f.read().split()]
     return events
 
 def compile(path_indir, max_len):
@@ -31,25 +31,17 @@ def compile(path_indir, max_len):
         path_infile = os.path.join(path_indir, path_txt)
         events = load_events(path_infile)
 
-        # Compute number of sequences to create from events
-        n_sequences = events.shape[0]//args.max_len
-        n_leftovers = (n_sequences + 1) * args.max_len - events.shape[0]
+        # Split the piece into sequences of len seq_len
+        for i in range(0, len(events), max_len):
+            sequence = events[i:i+max_len]
+            if len(sequence) < max_len:
+                # Pad sequence
+                sequence += [PAD_TOKEN] * (max_len - len(sequence))
 
-        # Pad events before splitting sequences
-        padded_events = np.pad(events, (0, n_leftovers), constant_values=(PAD_TOKEN))
-
-        sequences = padded_events.reshape(n_sequences + 1, max_len)
-        dataset.append(sequences)
+            dataset.append(sequence)
 
     dataset = np.vstack(dataset)
     return dataset
-
-def create_labels(dataset):
-    x = dataset[:-1]
-    y = dataset[1:]
-    mask = (dataset != PAD_TOKEN).astype(int)
-
-    return x, y, mask
 
 if __name__ == '__main__':
     # Parse arguments
@@ -68,12 +60,9 @@ if __name__ == '__main__':
     print(' > train x:', train_data.shape)
     print(' >  test x:', test_data.shape)
 
-    x_train, y_train, mask_train = create_labels(train_data)
-    x_test, y_test, mask_test = create_labels(test_data)
-
     # Save datasets
     path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
     path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
 
-    np.savez(path_train_outfile, x=x_train, y=y_train, mask=mask_train)
-    np.savez(path_test_outfile, x=x_test, y=y_test, mask=mask_test)
+    np.savez(path_train_outfile, x=train_data)
+    np.savez(path_test_outfile, x=test_data)

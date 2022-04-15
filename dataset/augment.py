@@ -12,9 +12,11 @@
 import os
 import copy
 import argparse
-import pretty_midi
 import numpy as np
 import multiprocessing as mp
+
+import miditoolkit
+from miditoolkit.midi.containers import Instrument, TempoChange, Note
 
 from utils import traverse_dir
 
@@ -22,35 +24,39 @@ from utils import traverse_dir
 transpose_intervals = range(-4, 5)
 
 # Range of strech factors
-stretch_factors = [1.0, 1.125, 1.25]
+stretch_factors = [0.8, 0.9, 1.0]
 
-def transpose(mid, interval):
+def transpose(midi_obj, interval):
     # Transpose all pitched notes
-    for instrument in mid.instruments:
+    for instrument in midi_obj.instruments:
         if not instrument.is_drum:
             for note in instrument.notes:
                 note.pitch += interval
 
-def strech(mid, stretch_factor):
+def strech(midi_obj, stretch_factor):
    # Strech time of all notes
-    for instrument in mid.instruments:
-        for note in instrument.notes:
-            # stretch note start time
-            note.start *= stretch_factor
+    # for instrument in midi_obj.instruments:
+    #     for note in instrument.notes:
+    #         # stretch note start time
+    #         note.start = round(note.start * stretch_factor)
+    #
+    #         # stretch note end time
+    #         note.end = round(note.end * stretch_factor)
 
-            # stretch note end time
-            note.end *= stretch_factor
+    for tempo_change in midi_obj.tempo_changes:
+        tempo_change.tempo = round(tempo_change.tempo * stretch_factor)
+
 
 def proc_one(path_infile, path_outfile):
     print('----')
     print(' >', path_infile)
 
-    original_mid = pretty_midi.PrettyMIDI(midi_file=path_infile)
+    midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
 
     # Transpose midi
     for interval in transpose_intervals:
         # Make a copy of the original midi
-        transpose_mid = copy.deepcopy(original_mid)
+        transpose_mid = copy.deepcopy(midi_obj)
 
         # Transpose midi
         transpose(transpose_mid, interval)
@@ -70,11 +76,11 @@ def proc_one(path_infile, path_outfile):
             strech(transposed_streched_mid, factor)
 
             if factor < 1.0:
-                strech_suffix = "_fast_" + str(int(factor * 100))
+                strech_suffix = "_slow_" + str(int(factor * 100))
             elif factor == 1.0:
                 strech_suffix = "_original"
             elif factor > 1.0:
-                strech_suffix = "_slow_" + str(int(factor * 100))
+                strech_suffix = "_fast_" + str(int(factor * 100))
 
             name_outfile, _ = os.path.splitext(path_outfile)
             new_path_outfile = name_outfile + interval_suffix + strech_suffix + ".mid"
@@ -85,7 +91,7 @@ def proc_one(path_infile, path_outfile):
 
             # save
             print(' >', new_path_outfile)
-            transposed_streched_mid.write(new_path_outfile)
+            transposed_streched_mid.dump(new_path_outfile)
 
 if __name__ == '__main__':
     # Parse arguments

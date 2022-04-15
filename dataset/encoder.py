@@ -10,292 +10,341 @@
 #
 
 import os
+import math
 import argparse
-import pretty_midi
+import collections
 import multiprocessing as mp
+import numpy as np
+
+import miditoolkit
+from miditoolkit.midi.containers import Instrument, TempoChange, Note
 
 from utils import traverse_dir
 
-RANGE_NOTE_ON = 128
-RANGE_NOTE_OFF = 128
-RANGE_VEL = 32
-RANGE_TIME_SHIFT = 100
-RANGE_SPECIAL = 3 #START, END, PAD
+# ================================================== #
+#  Configuration                                     #
+# ================================================== #
+MIN_BPM = 40
+MIN_VELOCITY = 40
 
-START_IDX = {
-    'note_on': 0,
-    'note_off': RANGE_NOTE_ON,
-    'time_shift': RANGE_NOTE_ON + RANGE_NOTE_OFF,
-    'velocity': RANGE_NOTE_ON + RANGE_NOTE_OFF + RANGE_TIME_SHIFT,
-    'special': RANGE_NOTE_ON + RANGE_NOTE_OFF + RANGE_TIME_SHIFT + RANGE_VEL
-}
+INSTR_NAME_MAP = {'piano': 0}
 
-MIDI_EXTENSIONS = [".mid", ".midi"]
-
-class SustainAdapter:
-    def __init__(self, time, type):
-        self.start =  time
-        self.type = type
-
-class SustainDownManager:
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
-        self.managed_notes = []
-        self._note_dict = {} # key: pitch, value: note.start
-
-    def add_managed_note(self, note: pretty_midi.Note):
-        self.managed_notes.append(note)
-
-    def transposition_notes(self):
-        for note in reversed(self.managed_notes):
-            try:
-                note.end = self._note_dict[note.pitch]
-            except KeyError:
-                note.end = max(self.end, note.end)
-
-            self._note_dict[note.pitch] = note.start
-
-# Divided note by note_on, note_off
-class SplitNote:
-    def __init__(self, type, time, value, velocity):
-        # type: note_on, note_off
-        self.type = type
-        self.time = time
-        self.velocity = velocity
-        self.value = value
-
-    def __repr__(self):
-        return '<[SNote] time: {} type: {}, value: {}, velocity: {}>'\
-            .format(self.time, self.type, self.value, self.velocity)
+DEFAULT_VELOCITY_BINS = np.linspace(0,  128, 64+1, dtype=np.int)
+DEFAULT_TEMPO_BINS    = np.linspace(32, 224, 64+1, dtype=np.int)
+DEFAULT_SHIFT_BINS    = np.linspace(-60, 60, 60+1, dtype=np.int)
+DEFAULT_PITCH_BINS    = np.arange(0, 128, dtype=np.int)
 
 class Event:
-    def __init__(self, event_type, value):
+    def __init__(self, start_idx, event_type, value=0):
+        assert event_type in start_idx
         self.type = event_type
         self.value = value
+        self.start_idx = start_idx
 
     def __repr__(self):
         return '<Event type: {}, value: {}>'.format(self.type, self.value)
 
     def to_int(self):
-        return START_IDX[self.type] + self.value
+        return self.start_idx[self.type] + self.value
 
     @staticmethod
-    def from_int(int_value):
-        info = Event._type_check(int_value)
-        return Event(info['type'], info['value'])
+    def from_int(int_value, start_idx):
+        info = Event._type_check(int_value, start_idx)
+        return Event(start_idx, info['type'], info['value'])
 
     @staticmethod
-    def _type_check(int_value):
-        range_note_on = range(0, RANGE_NOTE_ON)
-        range_note_off = range(RANGE_NOTE_ON, RANGE_NOTE_ON+RANGE_NOTE_OFF)
-        range_time_shift = range(RANGE_NOTE_ON+RANGE_NOTE_OFF, RANGE_NOTE_ON+RANGE_NOTE_OFF+RANGE_TIME_SHIFT)
-        range_velocity = range(RANGE_NOTE_ON+RANGE_NOTE_OFF+RANGE_TIME_SHIFT, RANGE_NOTE_ON+RANGE_NOTE_OFF+RANGE_TIME_SHIFT+RANGE_VEL)
-
+    def _type_check(int_value, start_idx):
         valid_value = int_value
 
-        if int_value in range_note_on:
-            return {'type': 'note_on', 'value': valid_value}
-        elif int_value in range_note_off:
-            valid_value -= RANGE_NOTE_ON
-            return {'type': 'note_off', 'value': valid_value}
-        elif int_value in range_time_shift:
-            valid_value -= (RANGE_NOTE_ON + RANGE_NOTE_OFF)
-            return {'type': 'time_shift', 'value': valid_value}
-        elif int_value in range_velocity:
-            valid_value -= (RANGE_NOTE_ON + RANGE_NOTE_OFF + RANGE_TIME_SHIFT)
+        if int_value in range(start_idx['beat'], start_idx['tempo']):
+            return {'type': 'beat', 'value': valid_value}
+
+        elif int_value in range(start_idx['tempo'], start_idx['velocity']):
+            valid_value -= start_idx['tempo']
+            return {'type': 'tempo', 'value': valid_value}
+
+        elif int_value in range(start_idx['velocity'], start_idx['duration']):
+            valid_value -= start_idx['velocity']
             return {'type': 'velocity', 'value': valid_value}
 
-        valid_value -= (RANGE_NOTE_ON + RANGE_NOTE_OFF + RANGE_TIME_SHIFT + RANGE_VEL)
-        return {'type': 'special', 'value': valid_value}
+        elif int_value in range(start_idx['duration'], start_idx['pitch']):
+            valid_value -= start_idx['duration']
+            return {'type': 'duration', 'value': valid_value}
 
-def _divide_note(notes):
-    result_array = []
-    notes.sort(key=lambda x: x.start)
+        elif int_value in range(start_idx['pitch'], start_idx['bar']):
+            valid_value -= start_idx['pitch']
+            return {'type': 'pitch', 'value': valid_value}
 
-    for note in notes:
-        on = SplitNote('note_on', note.start, note.pitch, note.velocity)
-        off = SplitNote('note_off', note.end, note.pitch, None)
-        result_array += [on, off]
+        return {'type': 'bar', 'value': 0}
 
-    return result_array
+def _load_notes(midi_obj, note_sorting = 1):
+    # load notes
+    instr_notes = collections.defaultdict(list)
 
-def _merge_note(snote_sequence):
-    note_on_dict = {}
-
-    result_array = []
-    for snote in snote_sequence:
-        if snote.type == 'note_on':
-            note_on_dict[snote.value] = snote
-        elif snote.type == 'note_off':
-            try:
-                # Get associated note_on time
-                on = note_on_dict[snote.value]
-
-                # Get note_off time
-                off = snote
-                if off.time - on.time == 0:
-                    continue
-
-                # Create pretty_midi note from the note_on and note_off times
-                result = pretty_midi.Note(on.velocity, snote.value, on.time, off.time)
-                result_array.append(result)
-            except:
-                print('info removed pitch: {}'.format(snote.value))
-
-    return result_array
-
-def _snote2events(snote: SplitNote, prev_vel: int):
-    result = []
-    if snote.velocity is not None:
-        modified_velocity = snote.velocity // 4
-        if prev_vel != modified_velocity:
-            result.append(Event(event_type='velocity', value=modified_velocity))
-
-    result.append(Event(event_type=snote.type, value=snote.value))
-    return result
-
-def _event_seq2snote_seq(event_sequence):
-    timeline = 0
-    velocity = 0
-    snote_seq = []
-
-    for event in event_sequence:
-        if event.type == 'time_shift':
-            timeline += ((event.value+1) / 100)
-        if event.type == 'velocity':
-            velocity = event.value * 4
-        if event.type == 'special':
+    for instr in midi_obj.instruments:
+        # skip
+        if instr.name not in INSTR_NAME_MAP.keys():
             continue
+
+        # process
+        instr_idx = INSTR_NAME_MAP[instr.name]
+        for note in instr.notes:
+            note.instr_idx = instr_idx
+            instr_notes[instr_idx].append(note)
+        if note_sorting == 0:
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, x.pitch))
+        elif note_sorting == 1:
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, -x.pitch))
         else:
-            snote = SplitNote(event.type, timeline, event.value, velocity)
-            snote_seq.append(snote)
+            raise ValueError(' [x] Unknown type of sorting.')
 
-    return snote_seq
+    return instr_notes
 
-def _make_time_sift_events(prev_time, post_time):
-    time_interval = int(round((post_time - prev_time) * 100))
-    results = []
+def _load_tempo_changes(midi_obj):
+    tempi = midi_obj.tempo_changes
+    tempi.sort(key=lambda x: x.time)
+    return tempi
 
-    while time_interval >= RANGE_TIME_SHIFT:
-        results.append(Event(event_type='time_shift', value=RANGE_TIME_SHIFT-1))
-        time_interval -= RANGE_TIME_SHIFT
+def _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_resol):
+    intsr_grid = dict()
 
-    if time_interval == 0:
-        return results
+    for key in notes.keys():
+        note_grid = collections.defaultdict(list)
+        for note in notes[key]:
+            note.start = note.start - offset * bar_resol
+            note.end = note.end - offset * bar_resol
 
-    return results + [Event(event_type='time_shift', value=time_interval-1)]
+            # quantize start
+            quant_time = int(np.round(note.start / tick_resol) * tick_resol)
 
-def _control_preprocess(ctrl_changes):
-    sustains = []
+            # velocity
+            note.velocity = DEFAULT_VELOCITY_BINS[np.argmin(abs(DEFAULT_VELOCITY_BINS - note.velocity))]
+            note.velocity = max(MIN_VELOCITY, note.velocity)
 
-    manager = None
-    for ctrl in ctrl_changes:
-        # sustain down
-        if ctrl.value >= 64 and manager is None:
-            manager = SustainDownManager(start=ctrl.time, end=None)
-        # sustain up
-        elif ctrl.value < 64 and manager is not None:
-            manager.end = ctrl.time
-            sustains.append(manager)
-            manager = None
-        elif ctrl.value < 64 and len(sustains) > 0:
-            sustains[-1].end = ctrl.time
+            # shift of start
+            note.shift = note.start - quant_time
+            note.shift = DEFAULT_SHIFT_BINS[np.argmin(abs(DEFAULT_SHIFT_BINS - note.shift))]
 
-    return sustains
+            # duration
+            note_tempo = _get_note_tempo(note, tempo_changes)
+            note_duration = note.end - note.start
+            note.duration = _get_closest_note_value(note_duration, beat_resol, tempo=note_tempo)
 
-def _note_preprocess(susteins, notes):
-    note_stream = []
+            # append
+            note_grid[quant_time].append(note)
 
-    # if the midi file has sustain controls
-    if susteins:
-        for sustain in susteins:
-            for note_idx, note in enumerate(notes):
-                if note.start < sustain.start:
-                    note_stream.append(note)
-                elif note.start > sustain.end:
-                    notes = notes[note_idx:]
-                    sustain.transposition_notes()
-                    break
-                else:
-                    sustain.add_managed_note(note)
+        # set to track
+        intsr_grid[key] = note_grid.copy()
 
-        for sustain in susteins:
-            note_stream += sustain.managed_notes
+    return intsr_grid
 
-    # else, just push everything into note stream
-    else:
-        for note_idx, note in enumerate(notes):
-            note_stream.append(note)
+def _get_note_tempo(note, tempo_changes):
+    i = 0
+    while i < len(tempo_changes) and note.start >= tempo_changes[i].time:
+        i += 1
+    return tempo_changes[i - 1].tempo
 
-    note_stream.sort(key= lambda x: x.start)
-    return note_stream
+def _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol):
+    tempo_grid = collections.defaultdict(list)
+    for tempo in tempo_changes:
+        # quantize
+        tempo.time = tempo.time - offset * bar_resol
+        tempo.time = 0 if tempo.time < 0 else tempo.time
 
-def encode_midi(path_infile, path_outfile):
-    print('----')
-    print(' >', path_infile)
-    print(' >', path_outfile)
+        quant_time = int(np.round(tempo.time / tick_resol) * tick_resol)
+        tempo.tempo = DEFAULT_TEMPO_BINS[np.argmin(abs(DEFAULT_TEMPO_BINS-tempo.tempo))]
 
-    notes = []
+        # append
+        tempo_grid[quant_time].append(tempo)
+
+    return tempo_grid
+
+def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
+    beat_range     = bar_resol//tick_resol
+    tempo_range    = len(DEFAULT_TEMPO_BINS)
+    velocity_range = len(DEFAULT_VELOCITY_BINS)
+    duration_range = 28
+    pitch_range    = len(DEFAULT_PITCH_BINS)
+
+    events_index = {
+        'beat'    : 0,
+        'tempo'   : beat_range,
+        'velocity': beat_range + tempo_range,
+        'duration': beat_range + tempo_range + velocity_range,
+        'pitch'   : beat_range + tempo_range + velocity_range + duration_range,
+        'bar'     : beat_range + tempo_range + velocity_range + duration_range + pitch_range
+    }
+
     events = []
+    for bar_step in range(0, last_bar * bar_resol, bar_resol):
+        # --- piano track --- #
+        for t in range(bar_step, bar_step + bar_resol, tick_resol):
+            t_tempos = tempo_changes[t]
+            t_notes = notes[0][t]
 
-    mid = pretty_midi.PrettyMIDI(midi_file=path_infile)
-    for inst in mid.instruments:
-        # Only consider instruments from the piano family
-        assert pretty_midi.program_to_instrument_class(inst.program) == "Piano", file_path + " contains a non-piano instrument."
+            # Beat
+            beat_value = (t - bar_step)//tick_resol
+            events.append(Event(events_index, event_type='beat', value=beat_value).to_int())
 
-        # ctrl.number is the number of sustain control:
-        # https://www.midi.org/specifications-old/item/table-3-control-change-messages-data-bytes-2
-        ctrls = _control_preprocess([ctrl for ctrl in inst.control_changes if ctrl.number == 64])
-        notes += _note_preprocess(ctrls, inst.notes)
+            # Tempo
+            if len(t_tempos):
+                tempo_value = int(np.where(DEFAULT_TEMPO_BINS == t_tempos[-1].tempo)[0])
+                events.append(Event(events_index, event_type='tempo', value=tempo_value).to_int())
 
-    dnotes = _divide_note(notes)
-    dnotes.sort(key=lambda x: x.time)
+            # Notes
+            for note in t_notes:
+                velocity_value = int(np.where(DEFAULT_VELOCITY_BINS == note.velocity)[0])
+                events.append(Event(events_index, event_type='velocity', value=velocity_value).to_int())
+                events.append(Event(events_index, event_type='duration', value=note.duration).to_int())
+                events.append(Event(events_index, event_type='pitch', value=note.pitch).to_int())
 
-    cur_time = 0
-    cur_vel = 0
-    for snote in dnotes:
-        events += _make_time_sift_events(prev_time=cur_time, post_time=snote.time)
-        events += _snote2events(snote=snote, prev_vel=cur_vel)
+        # create bar event
+        events.append(Event(events_index, event_type='bar').to_int())
 
-        cur_time = snote.time
-        cur_vel = snote.velocity
+    return events
 
-    # Make sure the encoded midi is not empty
-    assert len(events) > 0, file_path + " does not have any MIDI events."
+def _get_duration_values(beat_resol, note_range=8, dots=4, tempo=120):
+    note_types = []
 
-    # Create START and END events
-    start = Event(event_type="special", value=0)
-    end = Event(event_type="special", value=1)
+    # Generate all possible notes
+    note_length = int(note_range * beat_resol)
 
-    # add START and END events
-    events = [start.to_int()] + [e.to_int() for e in events] + [end.to_int()]
+    while note_length >= beat_resol//note_range:
+        # Append current note length (e.g. whole, half, quarter...)
+        note_types.append(note_length)
 
-    # mkdir
+        # Generate dot divisions
+        dot_length = note_length//2
+        dotted_note_length = note_length + dot_length
+        for i in range(1, dots):
+            # Append current dotted note
+            note_types.append(dotted_note_length)
+
+            dot_length = dot_length//2
+            dotted_note_length = dotted_note_length + dot_length
+
+        note_length = note_length//2
+
+    return note_types
+
+def _get_closest_note_value(delta_time, beat_resol, tempo):
+    note_types = _get_duration_values(beat_resol=beat_resol, tempo=tempo)
+
+    min_dist = math.inf
+    min_type = None
+    for i, type in enumerate(note_types):
+        dist = abs(delta_time - type)
+        if dist < min_dist:
+            min_dist = dist
+            min_type = i
+
+    return min_type
+
+def encode_midi(path_infile, path_outfile, note_sorting=1):
+    # --- load --- #
+    midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
+
+    beat_resol = midi_obj.ticks_per_beat
+    bar_resol  = beat_resol * 4
+    tick_resol = beat_resol // 4
+
+    # notes and tempo changes
+    notes = _load_notes(midi_obj, note_sorting=note_sorting)
+    tempo_changes = _load_tempo_changes(midi_obj)
+
+    # --- process items to grid --- #
+    # compute empty bar offset at head
+    first_note_time = min([notes[k][0].start for k in notes.keys()])
+    last_note_time = max([notes[k][-1].start for k in notes.keys()])
+
+    # compute quantized time of the first note
+    quant_time_first = int(np.round(first_note_time / tick_resol) * tick_resol)
+
+    # compute quantized offset and last bar time
+    offset = quant_time_first // bar_resol
+    last_bar = int(np.ceil(last_note_time / bar_resol)) - offset
+    print(' > offset:', offset)
+    print(' > last_bar:', last_bar)
+
+    # process quantized notes and tempo
+    note_grid = _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_resol)
+    tempo_grid = _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol)
+
+    # create events
+    events = _create_events(note_grid, tempo_grid, last_bar, tick_resol, bar_resol)
+
+    # save
     fn = os.path.basename(path_outfile)
     os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
 
-    # Save txt version of the midi file to load it faster during training
-    with open(path_outfile, "w") as midi_txt_file:
-        midi_txt_file.write(" ".join(str(e) for e in events))
+    with open(path_outfile, 'w') as f:
+        f.write(' '.join([str(e) for e in events]))
 
-def decode_midi(idx_array, file_path=None):
-    event_sequence = [Event.from_int(idx) for idx in idx_array]
+    return events
 
-    snote_seq = _event_seq2snote_seq(event_sequence)
-    note_seq = _merge_note(snote_seq)
-    note_seq.sort(key=lambda x:x.start)
+def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
+    # Create mid object
+    midi_obj = miditoolkit.midi.parser.MidiFile(ticks_per_beat=ticks_per_beat)
 
-    # if want to change instument, see https://www.midi.org/specifications/item/gm-level-1-sound-set
-    mid = pretty_midi.PrettyMIDI()
-    instument = pretty_midi.Instrument(1, False, "Encoded Midi")
-    instument.notes = note_seq
+    beat_resol = ticks_per_beat
+    bar_resol  = beat_resol * 4
+    tick_resol = beat_resol // 4
 
-    mid.instruments.append(instument)
-    if file_path is not None:
-        mid.write(file_path)
+    beat_range     = bar_resol//tick_resol
+    tempo_range    = len(DEFAULT_TEMPO_BINS)
+    velocity_range = len(DEFAULT_VELOCITY_BINS)
+    duration_range = 28
+    pitch_range    = len(DEFAULT_PITCH_BINS)
 
-    return mid
+    events_index = {
+        'beat'    : 0,
+        'tempo'   : beat_range,
+        'velocity': beat_range + tempo_range,
+        'duration': beat_range + tempo_range + velocity_range,
+        'pitch'   : beat_range + tempo_range + velocity_range + duration_range,
+        'bar'     : beat_range + tempo_range + velocity_range + duration_range + pitch_range
+    }
+
+    events = [Event.from_int(idx, events_index) for idx in idx_array]
+
+    bar_cnt = 0
+    cur_pos = 0
+
+    notes = []
+    for ev in events:
+        if ev.type == "beat":
+            cur_pos = bar_cnt * bar_resol + ev.value * tick_resol
+
+        if ev.type == "tempo":
+            tempo = DEFAULT_TEMPO_BINS[ev.value]
+            midi_obj.tempo_changes.append(TempoChange(tempo=tempo, time=cur_pos))
+
+        if ev.type == "velocity":
+            velocity = DEFAULT_VELOCITY_BINS[ev.value]
+
+        if ev.type == "duration":
+            note_values = _get_duration_values(beat_resol=beat_resol, tempo=tempo)
+            duration = note_values[ev.value]
+
+        if ev.type == "pitch":
+            note = Note(pitch=ev.value, start=cur_pos, end=cur_pos + duration, velocity=velocity)
+            notes.append(note)
+
+        elif ev.type == "bar":
+            bar_cnt += 1
+
+    # add events to  midi object
+    piano = Instrument(0, is_drum=False, name='piano')
+    piano.notes = notes
+    midi_obj.instruments = [piano]
+
+    # save midi
+    if path_outfile:
+        fn = os.path.basename(path_outfile)
+        os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
+        midi_obj.dump(path_outfile)
+
+    return midi_obj
 
 if __name__ == '__main__':
     # Parse arguments
@@ -333,3 +382,6 @@ if __name__ == '__main__':
     # run, multi-thread
     pool = mp.Pool()
     pool.starmap(encode_midi, data)
+
+    # for d in data:
+    #     encode_midi(d[0], d[1])

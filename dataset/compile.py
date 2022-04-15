@@ -52,6 +52,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_len', type=int, required=True)
     args = parser.parse_args()
 
+    os.makedirs(args.path_outdir, exist_ok=True)
+
     # Load datasets
     train_data = compile(args.path_train_indir, args.max_len)
     test_data = compile(args.path_test_indir, args.max_len)

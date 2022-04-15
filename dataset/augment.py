@@ -34,15 +34,6 @@ def transpose(midi_obj, interval):
                 note.pitch += interval
 
 def strech(midi_obj, stretch_factor):
-   # Strech time of all notes
-    # for instrument in midi_obj.instruments:
-    #     for note in instrument.notes:
-    #         # stretch note start time
-    #         note.start = round(note.start * stretch_factor)
-    #
-    #         # stretch note end time
-    #         note.end = round(note.end * stretch_factor)
-
     for tempo_change in midi_obj.tempo_changes:
         tempo_change.tempo = round(tempo_change.tempo * stretch_factor)
 

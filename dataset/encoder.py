@@ -159,21 +159,39 @@ def _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol):
 
     return tempo_grid
 
-def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
-    beat_range     = bar_resol//tick_resol
-    tempo_range    = len(DEFAULT_TEMPO_BINS)
-    velocity_range = len(DEFAULT_VELOCITY_BINS)
-    duration_range = 28
-    pitch_range    = len(DEFAULT_PITCH_BINS)
+def get_vocab_size(bar_resol, tick_resol):
+    n_beats    = bar_resol//tick_resol
+    n_tempo    = len(DEFAULT_TEMPO_BINS)
+    n_velocity = len(DEFAULT_VELOCITY_BINS)
+    n_duration = 28
+    n_pitch    = len(DEFAULT_PITCH_BINS)
+    n_bar      = 1
+    n_pad      = 1
+
+    return n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar + n_pad
+
+def build_events_index(bar_resol, tick_resol):
+    n_beats    = bar_resol//tick_resol
+    n_tempo    = len(DEFAULT_TEMPO_BINS)
+    n_velocity = len(DEFAULT_VELOCITY_BINS)
+    n_duration = 28
+    n_pitch    = len(DEFAULT_PITCH_BINS)
+    n_bar      = 1
 
     events_index = {
         'beat'    : 0,
-        'tempo'   : beat_range,
-        'velocity': beat_range + tempo_range,
-        'duration': beat_range + tempo_range + velocity_range,
-        'pitch'   : beat_range + tempo_range + velocity_range + duration_range,
-        'bar'     : beat_range + tempo_range + velocity_range + duration_range + pitch_range
+        'tempo'   : n_beats,
+        'velocity': n_beats + n_tempo,
+        'duration': n_beats + n_tempo + n_velocity,
+        'pitch'   : n_beats + n_tempo + n_velocity + n_duration,
+        'bar'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch,
+        'pad'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar
     }
+
+    return events_index
+
+def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
+    events_index = build_events_index(bar_resol, tick_resol)
 
     events = []
     for bar_step in range(0, last_bar * bar_resol, bar_resol):
@@ -290,21 +308,7 @@ def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
     bar_resol  = beat_resol * 4
     tick_resol = beat_resol // 4
 
-    beat_range     = bar_resol//tick_resol
-    tempo_range    = len(DEFAULT_TEMPO_BINS)
-    velocity_range = len(DEFAULT_VELOCITY_BINS)
-    duration_range = 28
-    pitch_range    = len(DEFAULT_PITCH_BINS)
-
-    events_index = {
-        'beat'    : 0,
-        'tempo'   : beat_range,
-        'velocity': beat_range + tempo_range,
-        'duration': beat_range + tempo_range + velocity_range,
-        'pitch'   : beat_range + tempo_range + velocity_range + duration_range,
-        'bar'     : beat_range + tempo_range + velocity_range + duration_range + pitch_range
-    }
-
+    events_index = build_events_index(bar_resol, tick_resol)
     events = [Event.from_int(idx, events_index) for idx in idx_array]
 
     bar_cnt = 0

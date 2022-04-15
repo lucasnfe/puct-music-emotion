@@ -2,9 +2,8 @@ import os
 import argparse
 import numpy as np
 
+from encoder import *
 from utils import traverse_dir
-
-PAD_TOKEN = 390
 
 def load_events(path_infile):
     events = []
@@ -12,7 +11,7 @@ def load_events(path_infile):
         events = [int(token) for token in f.read().split()]
     return events
 
-def compile(path_indir, max_len):
+def compile(path_indir, max_len, ticks_per_beat=1024):
     # list files
     txtfiles = traverse_dir(
         path_indir,
@@ -21,6 +20,10 @@ def compile(path_indir, max_len):
         extension=("txt"))
     n_files = len(txtfiles)
     print('num files:', n_files)
+
+    # Get pad token
+    events_index = build_events_index(ticks_per_beat * 4, ticks_per_beat // 4)
+    pad_token = Event(events_index, event_type='pad').to_int()
 
     dataset = []
     for fidx in range(n_files):
@@ -36,7 +39,7 @@ def compile(path_indir, max_len):
             sequence = events[i:i+max_len]
             if len(sequence) < max_len:
                 # Pad sequence
-                sequence += [PAD_TOKEN] * (max_len - len(sequence))
+                sequence += [pad_token] * (max_len - len(sequence))
 
             dataset.append(sequence)
 

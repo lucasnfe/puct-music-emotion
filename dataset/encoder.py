@@ -75,7 +75,45 @@ class Event:
             valid_value -= start_idx['pitch']
             return {'type': 'pitch', 'value': valid_value}
 
-        return {'type': 'bar', 'value': 0}
+        elif int_value in range(start_idx['bar'], start_idx['control']):
+            valid_value -= start_idx['bar']
+            return {'type': 'bar', 'value': valid_value}
+
+        valid_value -= start_idx['control']
+        return {'type': 'control', 'value': valid_value}
+
+    @staticmethod
+    def build_events_index(bar_resol, tick_resol):
+        n_beats    = bar_resol//tick_resol
+        n_tempo    = len(DEFAULT_TEMPO_BINS)
+        n_velocity = len(DEFAULT_VELOCITY_BINS)
+        n_duration = 28
+        n_pitch    = len(DEFAULT_PITCH_BINS)
+        n_bar      = 1
+
+        events_index = {
+            'beat'    : 0,
+            'tempo'   : n_beats,
+            'velocity': n_beats + n_tempo,
+            'duration': n_beats + n_tempo + n_velocity,
+            'pitch'   : n_beats + n_tempo + n_velocity + n_duration,
+            'bar'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch,
+            'control' : n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar
+        }
+
+        return events_index
+
+    @staticmethod
+    def get_vocab_size(bar_resol, tick_resol):
+        n_beats    = bar_resol//tick_resol
+        n_tempo    = len(DEFAULT_TEMPO_BINS)
+        n_velocity = len(DEFAULT_VELOCITY_BINS)
+        n_duration = 28
+        n_pitch    = len(DEFAULT_PITCH_BINS)
+        n_bar      = 1
+        n_control  = 3 # start, stop, pad
+
+        return n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar + n_control
 
 def _load_notes(midi_obj, note_sorting = 1):
     # load notes
@@ -159,41 +197,13 @@ def _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol):
 
     return tempo_grid
 
-def get_vocab_size(bar_resol, tick_resol):
-    n_beats    = bar_resol//tick_resol
-    n_tempo    = len(DEFAULT_TEMPO_BINS)
-    n_velocity = len(DEFAULT_VELOCITY_BINS)
-    n_duration = 28
-    n_pitch    = len(DEFAULT_PITCH_BINS)
-    n_bar      = 1
-    n_pad      = 1
-
-    return n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar + n_pad
-
-def build_events_index(bar_resol, tick_resol):
-    n_beats    = bar_resol//tick_resol
-    n_tempo    = len(DEFAULT_TEMPO_BINS)
-    n_velocity = len(DEFAULT_VELOCITY_BINS)
-    n_duration = 28
-    n_pitch    = len(DEFAULT_PITCH_BINS)
-    n_bar      = 1
-
-    events_index = {
-        'beat'    : 0,
-        'tempo'   : n_beats,
-        'velocity': n_beats + n_tempo,
-        'duration': n_beats + n_tempo + n_velocity,
-        'pitch'   : n_beats + n_tempo + n_velocity + n_duration,
-        'bar'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch,
-        'pad'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar
-    }
-
-    return events_index
-
 def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
-    events_index = build_events_index(bar_resol, tick_resol)
-
     events = []
+    events_index = Event.build_events_index(bar_resol, tick_resol)
+
+    # End of piece event
+    events.append(Event(events_index, event_type='control', value=0).to_int())
+
     for bar_step in range(0, last_bar * bar_resol, bar_resol):
         # --- piano track --- #
         for t in range(bar_step, bar_step + bar_resol, tick_resol):
@@ -218,6 +228,9 @@ def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
 
         # create bar event
         events.append(Event(events_index, event_type='bar').to_int())
+
+    # End of piece event
+    events.append(Event(events_index, event_type='control', value=1).to_int())
 
     return events
 
@@ -308,7 +321,7 @@ def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
     bar_resol  = beat_resol * 4
     tick_resol = beat_resol // 4
 
-    events_index = build_events_index(bar_resol, tick_resol)
+    events_index = Event.build_events_index(bar_resol, tick_resol)
     events = [Event.from_int(idx, events_index) for idx in idx_array]
 
     bar_cnt = 0

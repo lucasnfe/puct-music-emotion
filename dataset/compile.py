@@ -25,6 +25,9 @@ def compile(path_indir, max_len, ticks_per_beat=1024):
     events_index = Event.build_events_index(ticks_per_beat * 4, ticks_per_beat // 4)
     pad_token = Event(events_index, event_type='control', value=2).to_int()
 
+    # Make room for split x[:-1], y[1:]
+    max_len += 1
+
     dataset = []
     for fidx in range(n_files):
         path_txt = txtfiles[fidx]

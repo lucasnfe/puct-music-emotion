@@ -17,8 +17,9 @@ import multiprocessing as mp
 import numpy as np
 
 import miditoolkit
-from miditoolkit.midi.containers import Instrument, TempoChange, Note
+from miditoolkit.midi.containers import Marker, Instrument, TempoChange, Note
 
+from chorder import Dechorder
 from utils import traverse_dir
 
 # ================================================== #
@@ -33,87 +34,6 @@ DEFAULT_VELOCITY_BINS = np.linspace(0,  128, 64+1, dtype=np.int)
 DEFAULT_TEMPO_BINS    = np.linspace(32, 224, 64+1, dtype=np.int)
 DEFAULT_SHIFT_BINS    = np.linspace(-60, 60, 60+1, dtype=np.int)
 DEFAULT_PITCH_BINS    = np.arange(0, 128, dtype=np.int)
-
-class Event:
-    def __init__(self, start_idx, event_type, value=0):
-        assert event_type in start_idx
-        self.type = event_type
-        self.value = value
-        self.start_idx = start_idx
-
-    def __repr__(self):
-        return '<Event type: {}, value: {}>'.format(self.type, self.value)
-
-    def to_int(self):
-        return self.start_idx[self.type] + self.value
-
-    @staticmethod
-    def from_int(int_value, start_idx):
-        info = Event._type_check(int_value, start_idx)
-        return Event(start_idx, info['type'], info['value'])
-
-    @staticmethod
-    def _type_check(int_value, start_idx):
-        valid_value = int_value
-
-        if int_value in range(start_idx['beat'], start_idx['tempo']):
-            return {'type': 'beat', 'value': valid_value}
-
-        elif int_value in range(start_idx['tempo'], start_idx['velocity']):
-            valid_value -= start_idx['tempo']
-            return {'type': 'tempo', 'value': valid_value}
-
-        elif int_value in range(start_idx['velocity'], start_idx['duration']):
-            valid_value -= start_idx['velocity']
-            return {'type': 'velocity', 'value': valid_value}
-
-        elif int_value in range(start_idx['duration'], start_idx['pitch']):
-            valid_value -= start_idx['duration']
-            return {'type': 'duration', 'value': valid_value}
-
-        elif int_value in range(start_idx['pitch'], start_idx['bar']):
-            valid_value -= start_idx['pitch']
-            return {'type': 'pitch', 'value': valid_value}
-
-        elif int_value in range(start_idx['bar'], start_idx['control']):
-            valid_value -= start_idx['bar']
-            return {'type': 'bar', 'value': valid_value}
-
-        valid_value -= start_idx['control']
-        return {'type': 'control', 'value': valid_value}
-
-    @staticmethod
-    def build_events_index(bar_resol, tick_resol):
-        n_beats    = bar_resol//tick_resol
-        n_tempo    = len(DEFAULT_TEMPO_BINS)
-        n_velocity = len(DEFAULT_VELOCITY_BINS)
-        n_duration = 28
-        n_pitch    = len(DEFAULT_PITCH_BINS)
-        n_bar      = 1
-
-        events_index = {
-            'beat'    : 0,
-            'tempo'   : n_beats,
-            'velocity': n_beats + n_tempo,
-            'duration': n_beats + n_tempo + n_velocity,
-            'pitch'   : n_beats + n_tempo + n_velocity + n_duration,
-            'bar'     : n_beats + n_tempo + n_velocity + n_duration + n_pitch,
-            'control' : n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar
-        }
-
-        return events_index
-
-    @staticmethod
-    def get_vocab_size(bar_resol, tick_resol):
-        n_beats    = bar_resol//tick_resol
-        n_tempo    = len(DEFAULT_TEMPO_BINS)
-        n_velocity = len(DEFAULT_VELOCITY_BINS)
-        n_duration = 28
-        n_pitch    = len(DEFAULT_PITCH_BINS)
-        n_bar      = 1
-        n_control  = 3 # start, stop, pad
-
-        return n_beats + n_tempo + n_velocity + n_duration + n_pitch + n_bar + n_control
 
 def _load_notes(midi_obj, note_sorting = 1):
     # load notes
@@ -142,6 +62,23 @@ def _load_tempo_changes(midi_obj):
     tempi = midi_obj.tempo_changes
     tempi.sort(key=lambda x: x.time)
     return tempi
+
+def _load_chords(midi_obj, beat_resol):
+    num2pitch = {
+        0: 'C', 1: 'C#', 2: 'D', 3: 'D#', 4: 'E', 5: 'F',
+        6: 'F#', 7: 'G', 8: 'G#', 9: 'A', 10: 'A#', 11: 'B'
+    }
+
+    chords = []
+    for cidx, chord in enumerate(Dechorder.dechord(midi_obj)):
+        if chord.is_complete():
+            chord_text = '{}_{}_{}'.format(num2pitch[chord.root_pc], chord.quality, num2pitch[chord.bass_pc])
+        else:
+            chord_text = 'N_N_N'
+
+        chords.append(Marker(time=int(cidx * beat_resol), text=chord_text))
+
+    return chords
 
 def _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_resol):
     intsr_grid = dict()
@@ -197,40 +134,58 @@ def _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol):
 
     return tempo_grid
 
-def _create_events(notes, tempo_changes, last_bar, tick_resol, bar_resol):
+def _process_chords(chords, offset, tick_resol, bar_resol):
+    chord_grid = collections.defaultdict(list)
+    for chord in chords:
+        # quantize
+        chord.time = chord.time - offset * bar_resol
+        chord.time  = 0 if chord.time < 0 else chord.time
+        quant_time = int(np.round(chord.time / tick_resol) * tick_resol)
+
+        # append
+        chord_grid[quant_time].append(chord)
+
+    return chord_grid
+
+def _create_events(notes, tempo_changes, chords, last_bar, tick_resol, bar_resol):
     events = []
-    events_index = Event.build_events_index(bar_resol, tick_resol)
 
     # End of piece event
-    events.append(Event(events_index, event_type='control', value=0).to_int())
+    events.append("s")
 
     for bar_step in range(0, last_bar * bar_resol, bar_resol):
         # --- piano track --- #
         for t in range(bar_step, bar_step + bar_resol, tick_resol):
             t_tempos = tempo_changes[t]
-            t_notes = notes[0][t]
+            t_notes  = notes[0][t]
+            t_chords = chords[t]
 
             # Beat
             beat_value = (t - bar_step)//tick_resol
-            events.append(Event(events_index, event_type='beat', value=beat_value).to_int())
+            events.append('b_{}'.format(beat_value))
 
             # Tempo
             if len(t_tempos):
                 tempo_value = int(np.where(DEFAULT_TEMPO_BINS == t_tempos[-1].tempo)[0])
-                events.append(Event(events_index, event_type='tempo', value=tempo_value).to_int())
+                events.append('t_{}'.format(tempo_value))
+
+            # Chord
+            if len(t_chords):
+                root, quality, _ = t_chords[-1].text.split('_')
+                events.append('c_{}_{}'.format(root, quality))
 
             # Notes
             for note in t_notes:
                 velocity_value = int(np.where(DEFAULT_VELOCITY_BINS == note.velocity)[0])
-                events.append(Event(events_index, event_type='velocity', value=velocity_value).to_int())
-                events.append(Event(events_index, event_type='duration', value=note.duration).to_int())
-                events.append(Event(events_index, event_type='pitch', value=note.pitch).to_int())
+                events.append('v_{}'.format(velocity_value))
+                events.append('d_{}'.format(note.duration))
+                events.append('p_{}'.format(note.pitch))
 
         # create bar event
-        events.append(Event(events_index, event_type='bar').to_int())
+        events.append("|")
 
     # End of piece event
-    events.append(Event(events_index, event_type='control', value=1).to_int())
+    events.append("e")
 
     return events
 
@@ -282,6 +237,7 @@ def encode_midi(path_infile, path_outfile, note_sorting=1):
     # notes and tempo changes
     notes = _load_notes(midi_obj, note_sorting=note_sorting)
     tempo_changes = _load_tempo_changes(midi_obj)
+    chords = _load_chords(midi_obj, beat_resol)
 
     # --- process items to grid --- #
     # compute empty bar offset at head
@@ -300,9 +256,10 @@ def encode_midi(path_infile, path_outfile, note_sorting=1):
     # process quantized notes and tempo
     note_grid = _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_resol)
     tempo_grid = _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol)
+    chord_grid = _process_chords(chords, offset, tick_resol, bar_resol)
 
     # create events
-    events = _create_events(note_grid, tempo_grid, last_bar, tick_resol, bar_resol)
+    events = _create_events(note_grid, tempo_grid, chord_grid, last_bar, tick_resol, bar_resol)
 
     # save
     fn = os.path.basename(path_outfile)

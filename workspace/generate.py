@@ -6,15 +6,14 @@
 #
 
 import torch
+import json
 import math
 import argparse
 
-from encoder import decode_midi
+from encoder import *
 from model import MusicGenerator
 
 from torch.distributions.categorical import Categorical
-
-START_TOKEN = 388
 
 def filter_top_p(y_hat, p, filter_value=-float("Inf")):
     sorted_logits, sorted_indices = torch.sort(y_hat, descending=True)
@@ -63,7 +62,7 @@ def generate(model, prime, n, k=0, p=0, temperature=1.0):
     generated = torch.tensor(prime).unsqueeze(dim=0).to(device)
     for i in range(prime_len, prime_len + n):
         print("generated", generated)
-        y_hat = model(generated, is_training=False)[:,-1,:]
+        y_hat = model(generated)[:,-1,:]
 
         if k > 0:
             y_hat = filter_top_k(y_hat, k)
@@ -79,14 +78,15 @@ if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser(description='generate.py')
     parser.add_argument('--model', type=str, required=True, help="Path to load model from.")
+    parser.add_argument('--vocab', type=str, required=True, help="Path to vocabulary.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--k', type=int, default=0, help="Number k of elements to consider while sampling.")
     parser.add_argument('--p', type=float, default=1.0, help="Probability p to consider while sampling.")
     parser.add_argument('--t', type=float, default=1.0, help="Sampling temperature.")
-    parser.add_argument('--vocab_size', type=int, required=True, help="Vocabulary size.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
     parser.add_argument('--d_model', type=int, default=256, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
+    parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--device', type=str, default=None, help="Torch device.")
     opt = parser.parse_args()
 
@@ -94,9 +94,14 @@ if __name__ == '__main__':
     device = opt.device
     if not device:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+   
+    # Load vocabular
+    with open(opt.vocab) as f:
+        vocab = json.load(f)
+    vocab_size = len(vocab)
 
     # Build linear transformer
-    model = MusicGenerator(n_tokens=opt.vocab_size,
+    model = MusicGenerator(n_tokens=vocab_size,
                                      d_model=opt.d_model,
                                      seq_len=opt.seq_len,
                               attention_type="causal-linear",
@@ -108,10 +113,12 @@ if __name__ == '__main__':
     model.eval()
 
     # Define prime sequence
-    prime = [START_TOKEN]
-
+    #prime = 's b_0'
+    prime = 's b_0 t_33 c_A#_m v_46 d_20 p_82 v_44 d_4 p_46 b_1 v_44 d_27 p_77 b_2 v_44 d_27 p_89 b_3 v_44 d_27 p_77 b_4 c_A#_m v_44 d_27 p_87 b_5 v_44 d_26 p_77 b_6 v_44 d_26 p_85 b_7 v_44 d_27 p_77 b_8 c_A#_m v_45 d_27 p_84 b_9 t_32 v_44 d_26 p_77 b_10 v_44 d_26 p_85 b_11 t_32 v_44 d_27 p_77 b_12 c_A#_m v_44 d_27 p_84 b_13 v_44 d_26 p_77 b_14 t_32 v_44 d_26 p_82 b_15 v_44 d_27 p_77 |'
+    prime = [vocab[event] for event in prime.split()]
+    
     # Generate continuation
     # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
-    piece = generate(model, prime, n=1000, k=opt.k, p=opt.p, temperature=opt.t)
-    decode_midi(piece, "generated_piece.mid")
+    piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
+    decode_midi(piece, vocab, "results/generated_piece.mid")
     print(piece)

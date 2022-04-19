@@ -1,10 +1,11 @@
 import os
 import time
 import math
-import pickle
+import json
 import torch
 import argparse
 
+from encoder import *
 from emopia import Emopia
 from model import MusicGenerator
 
@@ -47,37 +48,37 @@ def train(model, train_data, test_data, epochs, lr, save_to):
 
         # Save best model so far
         if val_loss < best_val_loss:
-            print(f'Validation loss improved from {best_val_loss:5.2f} to {val_loss:5.2f}.'
-                  f'Saving model to {save_to}.')
-
+            print(f'Validation loss improved from {best_val_loss:5.2f} to {val_loss:5.2f}.')
             best_val_loss = val_loss
-            save_model(model, optimizer, epoch, save_to)
+       
+        print(f'Saving model to {save_to}.')
+        save_model(model, optimizer, epoch, save_to)
 
         print('-' * 89)
 
         # Advance one epoch of the learning rate scheduler
-        #scheduler.step()
+        scheduler.step()
 
     return best_model
 
-def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, log_interval=10):
+def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, log_interval=100):
     model.train()
     start_time = time.time()
 
-    log_interval = len(train_data)//log_interval
-
     total_loss = 0
-    for batch, (x, y, mask) in enumerate(train_data):
+    for batch, (x, y, lengths) in enumerate(train_data):
         # Forward pass
         x = x.to(device)
         y = y.to(device)
-        mask = mask.to(device)
-        y_hat = model(x, mask)
+        lengths = lengths.to(device)
+        
+        y_hat = model(x, lengths)
 
         # Backward pass
         optimizer.zero_grad()
         loss = criterion(y_hat.view(-1, vocab_size), y.view(-1))
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 3)
         optimizer.step()
 
         # Log training statistics
@@ -110,13 +111,13 @@ def evaluate(model, test_data, criterion):
     total_loss = 0
     total_samples = 0
     with torch.no_grad():
-        for batch, (x, y, mask) in enumerate(test_data):
+        for batch, (x, y, lengths) in enumerate(test_data):
             x = x.to(device)
             y = y.to(device)
-            mask = mask.to(device)
+            lengths = lengths.to(device)
 
             # Evaluate
-            y_hat = model(x, mask)
+            y_hat = model(x, lengths)
             loss = criterion(y_hat.view(-1, vocab_size), y.view(-1))
 
             total_loss += x.shape[0] * loss.item()
@@ -129,29 +130,29 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='train_ftm.py')
     parser.add_argument('--train', type=str, required=True, help="Path to train data directory.")
     parser.add_argument('--test', type=str, required=True, help="Path to test data directory.")
-    parser.add_argument('--dict', type=str, required=True, help="Path to the dictionary.")
+    parser.add_argument('--vocab', type=str, required=True, help="Path to vocabulary.")
     parser.add_argument('--epochs', type=int, default=100, help="Epochs to train.")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch size.")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
-    parser.add_argument('--n_layers', type=int, default=4, help="Number of transformer layers.")
-    parser.add_argument('--d_query', type=int, default=32, help="Dimension of the query matrix.")
+    parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
+    parser.add_argument('--d_model', type=int, default=256, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
+    parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--save_to', type=str, required=True, help="Set a file to save the models to.")
     args = parser.parse_args()
 
     # Set up torch device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Load vocabular
+    with open(args.vocab) as f:
+        vocab = json.load(f)
+    vocab_size = len(vocab)
 
     # Load data as a flat tensors
-    train_data = Emopia(args.train)
-    test_data = Emopia(args.test)
-
-    # Load dictionary
-    event2word, word2event = pickle.load(open(args.dict, 'rb'))
-
-    # Compute vocab size
-    vocab_size = len(event2word.keys())
+    train_data = Emopia(args.train, pad_token=vocab['.'])
+    test_data = Emopia(args.test, pad_token=vocab['.'])
 
     # Batchfy flat tensor data
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
@@ -159,8 +160,7 @@ if __name__ == '__main__':
 
     # Build linear transformer
     model = MusicGenerator(n_tokens=vocab_size,
-                            d_query=args.d_query,
-                            d_model=args.d_query * args.n_heads,
+                            d_model=args.d_model,
                             seq_len=args.seq_len,
                      attention_type="causal-linear",
                            n_layers=args.n_layers,

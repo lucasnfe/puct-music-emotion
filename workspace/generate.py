@@ -10,7 +10,7 @@ import json
 import math
 import argparse
 
-from encoder import *
+from decoder import *
 from model import MusicGenerator
 
 from torch.distributions.categorical import Categorical
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     device = opt.device
     if not device:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-   
+
     # Load vocabular
     with open(opt.vocab) as f:
         vocab = json.load(f)
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     #prime = 's b_0'
     prime = 's b_0 t_33 c_A#_m v_46 d_20 p_82 v_44 d_4 p_46 b_1 v_44 d_27 p_77 b_2 v_44 d_27 p_89 b_3 v_44 d_27 p_77 b_4 c_A#_m v_44 d_27 p_87 b_5 v_44 d_26 p_77 b_6 v_44 d_26 p_85 b_7 v_44 d_27 p_77 b_8 c_A#_m v_45 d_27 p_84 b_9 t_32 v_44 d_26 p_77 b_10 v_44 d_26 p_85 b_11 t_32 v_44 d_27 p_77 b_12 c_A#_m v_44 d_27 p_84 b_13 v_44 d_26 p_77 b_14 t_32 v_44 d_26 p_82 b_15 v_44 d_27 p_77 |'
     prime = [vocab[event] for event in prime.split()]
-    
+
     # Generate continuation
     # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
     piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)

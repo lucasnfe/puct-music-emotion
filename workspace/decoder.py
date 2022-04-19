@@ -24,15 +24,8 @@ from chorder import Dechorder
 # ================================================== #
 #  Configuration                                     #
 # ================================================== #
-MIN_BPM = 40
-MIN_VELOCITY = 40
-
-INSTR_NAME_MAP = {'piano': 0}
-
 DEFAULT_VELOCITY_BINS = np.linspace(0,  128, 64+1, dtype=np.int)
 DEFAULT_TEMPO_BINS    = np.linspace(32, 224, 64+1, dtype=np.int)
-DEFAULT_SHIFT_BINS    = np.linspace(-60, 60, 60+1, dtype=np.int)
-DEFAULT_PITCH_BINS    = np.arange(0, 128, dtype=np.int)
 
 def _get_duration_values(beat_resol, note_range=8, dots=4, tempo=120):
     note_types = []
@@ -102,7 +95,7 @@ def decode_midi(idx_array, vocab, path_outfile=None, ticks_per_beat=1024):
 
         elif ev_type == '|':
             bar_cnt += 1
-        
+
         elif ev_type == 'e':
             break
 

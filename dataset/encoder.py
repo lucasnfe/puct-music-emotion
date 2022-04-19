@@ -270,7 +270,7 @@ def encode_midi(path_infile, path_outfile, note_sorting=1):
 
     return events
 
-def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
+def decode_midi(idx_array, vocab, path_outfile=None, ticks_per_beat=1024):
     # Create mid object
     midi_obj = miditoolkit.midi.parser.MidiFile(ticks_per_beat=ticks_per_beat)
 
@@ -278,34 +278,45 @@ def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
     bar_resol  = beat_resol * 4
     tick_resol = beat_resol // 4
 
-    events_index = Event.build_events_index(bar_resol, tick_resol)
-    events = [Event.from_int(idx, events_index) for idx in idx_array]
+    # load vocabulary
+    idx2event = {i:event for event,i in vocab.items()}
 
     bar_cnt = 0
     cur_pos = 0
 
     notes = []
-    for ev in events:
-        if ev.type == "beat":
-            cur_pos = bar_cnt * bar_resol + ev.value * tick_resol
+    for idx in idx_array:
+        event = idx2event[idx].split('_')
+        ev_type = event[0]
 
-        if ev.type == "tempo":
-            tempo = DEFAULT_TEMPO_BINS[ev.value]
+        if ev_type == 'b':
+            ev_value = int(event[1])
+            cur_pos = bar_cnt * bar_resol + ev_value * tick_resol
+
+        elif ev_type == 't':
+            ev_value = int(event[1])
+            tempo = DEFAULT_TEMPO_BINS[ev_value]
             midi_obj.tempo_changes.append(TempoChange(tempo=tempo, time=cur_pos))
 
-        if ev.type == "velocity":
-            velocity = DEFAULT_VELOCITY_BINS[ev.value]
+        elif ev_type == 'v':
+            ev_value = int(event[1])
+            velocity = DEFAULT_VELOCITY_BINS[ev_value]
 
-        if ev.type == "duration":
+        elif ev_type == 'd':
+            ev_value = int(event[1])
             note_values = _get_duration_values(beat_resol=beat_resol, tempo=tempo)
-            duration = note_values[ev.value]
+            duration = note_values[ev_value]
 
-        if ev.type == "pitch":
-            note = Note(pitch=ev.value, start=cur_pos, end=cur_pos + duration, velocity=velocity)
+        elif ev_type == 'p':
+            ev_value = int(event[1])
+            note = Note(pitch=ev_value, start=cur_pos, end=cur_pos + duration, velocity=velocity)
             notes.append(note)
 
-        elif ev.type == "bar":
+        elif ev_type == '|':
             bar_cnt += 1
+
+        elif ev_type == 'e':
+            break
 
     # add events to  midi object
     piano = Instrument(0, is_drum=False, name='piano')
@@ -319,7 +330,7 @@ def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
         midi_obj.dump(path_outfile)
 
     return midi_obj
-
+    
 if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser(description='encoder.py')

@@ -400,16 +400,11 @@ def decode_midi(idx_array, path_outfile=None, ticks_per_beat=1024):
     events_index = Event.build_events_index(bar_resol, tick_resol)
     events = [Event.from_int(idx, events_index) for idx in idx_array]
 
-    print(events_index)
-    print(idx_array)
-    print(events)
-
     bar_cnt = 0
     cur_pos = 0
 
     notes = []
     for ev in events:
-        print(ev)
         if ev.type == "beat":
             cur_pos = bar_cnt * bar_resol + ev.value * tick_resol
 

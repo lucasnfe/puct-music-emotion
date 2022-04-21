@@ -27,11 +27,11 @@ INSTRUMENT_MAP = {
 }
 
 EMOTION_MAP = {
-    (0,0)  : 0,
-    (1,1)  : 1,
-    (-1,1) : 2,
-    (-1,-1): 3,
-    (1,-1) : 4
+    'e0' : 0,
+    'e1' : 1,
+    'e2' : 2,
+    'e3' : 3,
+    'e4' : 4
 }
 
 DEGREE2PITCH = {
@@ -214,8 +214,9 @@ def _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_res
 
     return intsr_grid
 
-def _process_emotion(valence, arousal):
-    return EMOTION_MAP[(valence, arousal)]
+def _process_emotion(path_infile):
+    path_basename = os.path.basename(path_infile)
+    return EMOTION_MAP[path_basename.split('_')[0]]
 
 def _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol):
     tempo_grid = collections.defaultdict(list)
@@ -344,7 +345,7 @@ def _get_closest_note_value(delta_time, beat_resol, tempo):
 
     return min_type
 
-def encode_midi(path_infile, path_outfile, valence=0, arousal=0, note_sorting=1):
+def encode_midi(path_infile, path_outfile, note_sorting=1):
     # --- load --- #
     midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
 
@@ -372,7 +373,7 @@ def encode_midi(path_infile, path_outfile, valence=0, arousal=0, note_sorting=1)
     print(' > last_bar:', last_bar)
 
     # process quantized notes and tempo
-    emotion = _process_emotion(valence, arousal)
+    emotion = _process_emotion(path_infile)
     note_grid = _process_notes(notes, tempo_changes, offset, tick_resol, beat_resol, bar_resol)
     tempo_grid = _process_tempo_changes(tempo_changes, offset, tick_resol, bar_resol)
     chord_grid = _process_chords(chords, offset, tick_resol, bar_resol)

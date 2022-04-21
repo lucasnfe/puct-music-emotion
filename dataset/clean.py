@@ -11,6 +11,7 @@
 
 import os
 import copy
+import csv
 import argparse
 import pretty_midi
 import numpy as np
@@ -18,9 +19,15 @@ import multiprocessing as mp
 
 from utils import traverse_dir
 
-INSTR_NAME_MAP = {'piano': 0}
+EMOTION_MAP = {
+    ( 0,  0) :'e0',
+    ( 1,  1) :'e1',
+    (-1,  1) :'e2',
+    (-1, -1) :'e3',
+    ( 1, -1) :'e4'
+}
 
-def clean(path_infile, path_outfile):
+def clean(path_infile, path_outfile, emotion_annotation=None):
     print('----')
     print(' >', path_infile)
     print(' >', path_outfile)
@@ -78,6 +85,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='clean.py')
     parser.add_argument('--path_indir', type=str, required=True)
     parser.add_argument('--path_outdir', type=str, required=True)
+    parser.add_argument('--path_emotion', type=str, default=None)
     args = parser.parse_args()
 
     os.makedirs(args.path_outdir, exist_ok=True)
@@ -90,19 +98,37 @@ if __name__ == '__main__':
     n_files = len(midifiles)
     print('num files:', n_files)
 
+    # Load emotion data
+    emotion_annotation = None
+    if args.path_emotion:
+        emotion_annotation = {}
+        for row in csv.DictReader(open(args.path_emotion, "r")):
+            emotion_annotation[row['midi']] = (int(row['valence']), int(row['arousal']))
+
     # collect
     data = []
     for fidx in range(n_files):
         path_midi = midifiles[fidx]
         print('{}/{}'.format(fidx, n_files))
 
+        # Get piece emotion
+        emotion = (0, 0)
+        if path_midi in emotion_annotation:
+            emotion = emotion_annotation[path_midi]
+
+        path_midi_basename = os.path.basename(path_midi)
+        path_midi_emotion = path_midi.replace(path_midi_basename, '{}_{}'.format(EMOTION_MAP[emotion], path_midi_basename))
+
         # paths
         path_infile = os.path.join(args.path_indir, path_midi)
-        path_outfile = os.path.join(args.path_outdir, path_midi)
+        path_outfile = os.path.join(args.path_outdir, path_midi_emotion)
 
         # append
-        data.append([path_infile, path_outfile])
+        data.append([path_infile, path_outfile, emotion_annotation])
 
     # run, multi-thread
     pool = mp.Pool()
     pool.starmap(clean, data)
+
+    # for d in data:
+    #     clean(d[0], d[1], d[2])

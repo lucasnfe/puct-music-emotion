@@ -13,11 +13,11 @@ import os
 import copy
 import csv
 import argparse
-import pretty_midi
+import miditoolkit
 import numpy as np
 import multiprocessing as mp
 
-from utils import traverse_dir
+from utils import traverse_dir, program_to_instrument_class
 
 EMOTION_MAP = {
     ( 0,  0) :'e0',
@@ -27,14 +27,14 @@ EMOTION_MAP = {
     ( 1, -1) :'e4'
 }
 
-def clean(path_infile, path_outfile, emotion_annotation=None):
+def clean(path_infile, path_outfile, emotion_annotation=None, ticks_per_beat=1024):
     print('----')
     print(' >', path_infile)
     print(' >', path_outfile)
 
-    mid = pretty_midi.PrettyMIDI(midi_file=path_infile)
+    midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
 
-    for time_signature in mid.time_signature_changes:
+    for time_signature in midi_obj.time_signature_changes:
         if time_signature.numerator   != 4 or \
            time_signature.denominator != 4:
             print("Midi has a non common time signature", time_signature)
@@ -43,34 +43,41 @@ def clean(path_infile, path_outfile, emotion_annotation=None):
     first_piano_ix = None
     instruments_to_remove = []
 
-    for i in range(len(mid.instruments)):
-        if mid.instruments[i].is_drum:
-            print("Midi has a percusion instrument.", mid.instruments[i])
-            instruments_to_remove.append(mid.instruments[i])
+    for i in range(len(midi_obj.instruments)):
+        if midi_obj.instruments[i].is_drum:
+            print("Midi has a percusion instrument.", midi_obj.instruments[i])
+            instruments_to_remove.append(midi_obj.instruments[i])
             continue
 
-        if pretty_midi.program_to_instrument_class(mid.instruments[i].program) != "Piano":
-            print("Midi has a non-piano instrument.", mid.instruments[i])
-            instruments_to_remove.append(mid.instruments[i])
+        if program_to_instrument_class(midi_obj.instruments[i].program) != "Piano":
+            print("Midi has a non-piano instrument.", midi_obj.instruments[i])
+            instruments_to_remove.append(midi_obj.instruments[i])
             continue
 
         if first_piano_ix == None:
             first_piano_ix = i
         else:
-            mid.instruments[first_piano_ix].notes += mid.instruments[i].notes
-            mid.instruments[first_piano_ix].pitch_bends += mid.instruments[i].pitch_bends
-            mid.instruments[first_piano_ix].control_changes += mid.instruments[i].control_changes
+            midi_obj.instruments[first_piano_ix].notes += midi_obj.instruments[i].notes
+            midi_obj.instruments[first_piano_ix].pitch_bends += midi_obj.instruments[i].pitch_bends
+            midi_obj.instruments[first_piano_ix].control_changes += midi_obj.instruments[i].control_changes
 
-            instruments_to_remove.append(mid.instruments[i])
+            instruments_to_remove.append(midi_obj.instruments[i])
 
-        mid.instruments[i].program = 0
-        mid.instruments[i].name = 'piano'
+        midi_obj.instruments[i].program = 0
+        midi_obj.instruments[i].name = 'piano'
 
     # remove tracks
-    print("mid.instruments before", len(mid.instruments), instruments_to_remove)
+    print("mid.instruments before", len(midi_obj.instruments), instruments_to_remove)
     for instrument in instruments_to_remove:
-        mid.instruments.remove(instrument)
-    print("mid.instruments after", len(mid.instruments))
+        midi_obj.instruments.remove(instrument)
+
+    print("mid.instruments after", len(midi_obj.instruments))
+    for instrument in midi_obj.instruments:
+        for note in instrument.notes:
+            note.start = round(note.start * (ticks_per_beat/midi_obj.ticks_per_beat))
+            note.end = round(note.end * (ticks_per_beat/midi_obj.ticks_per_beat))
+
+    midi_obj.ticks_per_beat = ticks_per_beat
 
     # === save === #
     # mkdir
@@ -78,7 +85,7 @@ def clean(path_infile, path_outfile, emotion_annotation=None):
     os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
 
     # save
-    mid.write(path_outfile)
+    midi_obj.dump(path_outfile)
 
 if __name__ == '__main__':
     # Parse arguments

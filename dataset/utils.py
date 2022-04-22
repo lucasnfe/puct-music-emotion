@@ -2,13 +2,19 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-# emotion map
-emo_map = {
-    'Q1': 1,
-    'Q2': 2,
-    'Q3': 3,
-    'Q4': 4,
-}
+# INSTRUMENT_CLASSES contains the classes present in INSTRUMENTS
+INSTRUMENT_CLASSES = ['Piano', 'Chromatic Percussion', 'Organ', 'Guitar',
+                      'Bass', 'Strings', 'Ensemble', 'Brass', 'Reed', 'Pipe',
+                      'Synth Lead', 'Synth Pad', 'Synth Effects', 'Ethnic',
+                      'Percussive', 'Sound Effects']
+
+def program_to_instrument_class(program_number):
+    # Check that the supplied program is in the valid range
+    if program_number < 0 or program_number > 127:
+        raise ValueError('Invalid program number {}, should be between 0 and'
+                         ' 127'.format(program_number))
+    # Just grab the name from the instrument mapping list
+    return INSTRUMENT_CLASSES[int(program_number)//8]
 
 def plot_hist(data, path_outfile):
     print('[Fig] >> {}'.format(path_outfile))

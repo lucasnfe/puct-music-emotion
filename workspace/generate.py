@@ -10,7 +10,7 @@ import json
 import math
 import argparse
 
-from decoder import *
+from encoder import *
 from model import MusicGenerator
 
 from torch.distributions.categorical import Categorical
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser(description='generate.py')
     parser.add_argument('--model', type=str, required=True, help="Path to load model from.")
-    parser.add_argument('--vocab', type=str, required=True, help="Path to vocabulary.")
+    parser.add_argument('--emotion', type=int, default=0, help="Target emotion.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--k', type=int, default=0, help="Number k of elements to consider while sampling.")
     parser.add_argument('--p', type=float, default=1.0, help="Probability p to consider while sampling.")
@@ -95,10 +95,7 @@ if __name__ == '__main__':
     if not device:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Load vocabular
-    with open(opt.vocab) as f:
-        vocab = json.load(f)
-    vocab_size = len(vocab)
+    vocab_size = VOCAB_SIZE
 
     # Build linear transformer
     model = MusicGenerator(n_tokens=vocab_size,
@@ -113,12 +110,13 @@ if __name__ == '__main__':
     model.eval()
 
     # Define prime sequence
-    #prime = 's b_0'
-    prime = 's b_0 t_33 c_A#_m v_46 d_20 p_82 v_44 d_4 p_46 b_1 v_44 d_27 p_77 b_2 v_44 d_27 p_89 b_3 v_44 d_27 p_77 b_4 c_A#_m v_44 d_27 p_87 b_5 v_44 d_26 p_77 b_6 v_44 d_26 p_85 b_7 v_44 d_27 p_77 b_8 c_A#_m v_45 d_27 p_84 b_9 t_32 v_44 d_26 p_77 b_10 v_44 d_26 p_85 b_11 t_32 v_44 d_27 p_77 b_12 c_A#_m v_44 d_27 p_84 b_13 v_44 d_26 p_77 b_14 t_32 v_44 d_26 p_82 b_15 v_44 d_27 p_77 |'
-    prime = [vocab[event] for event in prime.split()]
+    prime = [Event(event_type='control', value=0).to_int(), 
+             Event(event_type='emotion', value=opt.emotion).to_int()]
+    #prime = [439,434,0,49,192,252,298,388,248,282,352,1,248,305,383,2,248,305,395,3,248,305,383,4,192,249,305,393,5,248,304,383,6,248,304,391,7,248,305,383,8,192,250,305,390,9,48,248,304,383,10,48,248,304,391,11,48,248,305,383,12,192,249,305,390,13,48,248,304,383,14,48,248,304,388,15,248,305,383,440]
+    #prime = [439,437,0,49,134,254,290,372,254,294,346,1,2,254,294,346,3,4,126,254,286,373,254,294,346,5,6,254,294,346,7,8,9,10,11,12,254,290,372,254,294,346,13,14,254,294,344,15,440]
 
     # Generate continuation
     # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
     piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
-    decode_midi(piece, vocab, "results/generated_piece.mid")
+    decode_midi(piece, "results/generated_piece.mid")
     print(piece)

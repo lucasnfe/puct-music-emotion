@@ -130,7 +130,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='train_ftm.py')
     parser.add_argument('--train', type=str, required=True, help="Path to train data directory.")
     parser.add_argument('--test', type=str, required=True, help="Path to test data directory.")
-    parser.add_argument('--vocab', type=str, required=True, help="Path to vocabulary.")
+    parser.add_argument('--model', type=str, default=None, help="Path to load model from.")
     parser.add_argument('--epochs', type=int, default=100, help="Epochs to train.")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch size.")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate.")
@@ -145,14 +145,14 @@ if __name__ == '__main__':
     # Set up torch device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load vocabular
-    with open(args.vocab) as f:
-        vocab = json.load(f)
-    vocab_size = len(vocab)
+    vocab_size = VOCAB_SIZE 
+
+    # Get pad token
+    pad_token = Event(event_type='control', value=3).to_int()
 
     # Load data as a flat tensors
-    train_data = Emopia(args.train, pad_token=vocab['.'])
-    test_data = Emopia(args.test, pad_token=vocab['.'])
+    train_data = Emopia(args.train, pad_token=pad_token)
+    test_data = Emopia(args.test, pad_token=pad_token)
 
     # Batchfy flat tensor data
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
@@ -165,6 +165,12 @@ if __name__ == '__main__':
                      attention_type="causal-linear",
                            n_layers=args.n_layers,
                            n_heads=args.n_heads).to(device)
+
+
+    # Load model
+    if args.model:
+        print('> Training from checkpoint', args.model)
+        model.load_state_dict(torch.load(args.model, map_location=device)["model_state"])
 
     # Train model
     trained_model = train(model, train_dataloader, test_dataloader, epochs=args.epochs, lr=args.lr, save_to=args.save_to)

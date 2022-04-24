@@ -52,10 +52,10 @@ class MusicGenerator(torch.nn.Module):
         length_mask = None
         if lengths is not None:
             length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
-       
+
         x = self.value_embedding(x) * math.sqrt(self.d_model)
         x = self.pos_embedding(x)
-        
+
         triangular_mask = TriangularCausalMask(x.shape[1], device=x.device)
 
         y_hat = self.transformer(x, attn_mask=triangular_mask, length_mask=length_mask)
@@ -63,3 +63,18 @@ class MusicGenerator(torch.nn.Module):
 
         return y_hat
 
+class MusicEmotionClassifier(MusicGenerator):
+    def forward(self, x, lengths=None):
+        length_mask = None
+        if lengths is not None:
+            length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
+
+        x = self.value_embedding(x) * math.sqrt(self.d_model)
+        x = self.pos_embedding(x)
+
+        y_hat = self.transformer(x, length_mask=length_mask)
+        y_hat = self.predictor(y_hat)
+
+        # Pool logits considering their lengths
+        y_hat = y_hat[range(x.shape[0]), lengths - 1]
+        return y_hat

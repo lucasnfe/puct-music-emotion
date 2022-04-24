@@ -50,7 +50,7 @@ def train(model, train_data, test_data, epochs, lr, save_to):
         if val_loss < best_val_loss:
             print(f'Validation loss improved from {best_val_loss:5.2f} to {val_loss:5.2f}.')
             best_val_loss = val_loss
-       
+
         print(f'Saving model to {save_to}.')
         save_model(model, optimizer, epoch, save_to)
 
@@ -71,7 +71,7 @@ def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, lo
         x = x.to(device)
         y = y.to(device)
         lengths = lengths.to(device)
-        
+
         y_hat = model(x, lengths)
 
         # Backward pass
@@ -144,8 +144,9 @@ if __name__ == '__main__':
 
     # Set up torch device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    vocab_size = VOCAB_SIZE 
+
+    # Get vocag size
+    vocab_size = VOCAB_SIZE
 
     # Get pad token
     pad_token = Event(event_type='control', value=3).to_int()

@@ -65,11 +65,13 @@ def train_step(model, train_data, epoch, lr, criterion, optimizer, log_interval=
     start_time = time.time()
 
     total_loss = 0
-    for batch, (x, y) in enumerate(train_data):
+    for batch, (x, y, lengths) in enumerate(train_data):
         # Forward pass
         x = x.to(device)
         y = y.to(device)
-        y_hat = model(x)
+        lengths = lengths.to(device)
+
+        y_hat = model(x, lengths)
 
         # Backward pass
         optimizer.zero_grad()
@@ -105,12 +107,13 @@ def evaluate(model, test_data):
     ys_hat = []
 
     with torch.no_grad():
-        for batch, (x, y) in enumerate(test_data):
+        for batch, (x, y, lengths) in enumerate(test_data):
             x = x.to(device)
             y = y.to(device)
+            lengths = lengths.to(device)
 
             # Evaluate
-            y_hat = model(x)
+            y_hat = model(x, lengths)
 
             # the class with the highest energy is what we choose as prediction
             _, y_hat = torch.max(y_hat.view(-1, 4).data, dim=1)
@@ -144,22 +147,19 @@ if __name__ == '__main__':
     # Set up torch device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # Get pad token
     vocab_size = VOCAB_SIZE
 
+    # Get pad token
+    pad_token = Event(event_type='control', value=3).to_int()
+
     # Load data as a flat tensors
-    vgmidi_train = VGMidiLabelled(opt.train, seq_len=opt.seq_len, prefix=opt.prefix)
-    vgmidi_test = VGMidiLabelled(opt.test, seq_len=opt.seq_len, prefix=opt.prefix)
+    vgmidi_train = VGMidiLabelled(opt.train, pad_token, prefix=opt.prefix)
+    vgmidi_test = VGMidiLabelled(opt.test, pad_token, prefix=opt.prefix)
 
     # Batchfy flat tensor data
-    train_loader = torch.utils.data.DataLoader(vgmidi_train,
-                             batch_size=opt.batch_size,
-                                sampler=VGMidiSampler(vgmidi_train, bucket_size=opt.prefix, max_len=opt.seq_len, shuffle=True),
-                             collate_fn=pad_collate)
-
-    test_loader = torch.utils.data.DataLoader(vgmidi_test,
-                                            batch_size=opt.batch_size,
-                                               sampler=VGMidiSampler(vgmidi_test, bucket_size=opt.prefix, max_len=opt.seq_len, shuffle=False),
-                                            collate_fn=pad_collate)
+    train_loader = torch.utils.data.DataLoader(vgmidi_train, batch_size=opt.batch_size)
+    test_loader = torch.utils.data.DataLoader(vgmidi_test, batch_size=opt.batch_size)
 
     # Build linear transformer
     model = MusicEmotionClassifier(n_tokens=vocab_size,

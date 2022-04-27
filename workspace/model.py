@@ -24,7 +24,7 @@ class PositionalEncoding(torch.nn.Module):
 class MusicGenerator(torch.nn.Module):
     def __init__(self, n_tokens, d_model, seq_len,
                  attention_type="full", n_layers=4, n_heads=4,
-                 dropout=0.25, attention_dropout=0.25,
+                 dropout=0.1, attention_dropout=0.1,
                  feed_forward_dimensions=1024):
 
         super(MusicGenerator, self).__init__()
@@ -64,6 +64,19 @@ class MusicGenerator(torch.nn.Module):
         return y_hat
 
 class MusicEmotionClassifier(MusicGenerator):
+    def __init__(self, n_tokens, d_model, seq_len,
+                 attention_type="full", n_layers=4, n_heads=4,
+                 dropout=0.1, attention_dropout=0.1,
+                 feed_forward_dimensions=1024):
+
+        super(MusicEmotionClassifier, self).__init__(n_tokens, d_model, seq_len,
+                                                     attention_type, n_layers, n_heads,
+                                                     dropout, attention_dropout,
+                                                     feed_forward_dimensions)
+
+        self.classification_dropout = torch.nn.Dropout(0.1)
+        self.classification_head = torch.nn.Linear(n_tokens, 4)
+    
     def forward(self, x, lengths=None):
         length_mask = None
         if lengths is not None:
@@ -77,4 +90,7 @@ class MusicEmotionClassifier(MusicGenerator):
 
         # Pool logits considering their lengths
         y_hat = y_hat[range(x.shape[0]), lengths - 1]
+        y_hat = self.classification_dropout(y_hat)
+        y_hat = self.classification_head(y_hat)
+
         return y_hat

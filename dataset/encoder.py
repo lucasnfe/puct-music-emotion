@@ -190,7 +190,7 @@ def _process_notes(notes, tempo_changes, offset):
 
     return intsr_grid
 
-def _process_emotion(path_infile):
+def process_emotion(path_infile):
     path_basename = os.path.basename(path_infile)
     return EMOTION_MAP[path_basename.split('_')[0]]
 
@@ -225,7 +225,7 @@ def _process_chords(chords, offset):
 
     return chord_grid
 
-def _create_events(emotion, notes, tempo_changes, chords, last_bar):
+def _create_events(notes, tempo_changes, chords, last_bar, emotion=0):
     events = []
 
     # Start of piece event
@@ -320,7 +320,7 @@ def _get_closest_note_value(delta_time, tempo):
 
     return min_type
 
-def encode_midi(path_infile, path_outfile, note_sorting=1):
+def encode_midi(path_infile, path_outfile, include_emotion=False, note_sorting=1):
     # --- load --- #
     midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
 
@@ -342,17 +342,22 @@ def encode_midi(path_infile, path_outfile, note_sorting=1):
     # compute quantized offset and last bar time
     offset = quant_time_first // BAR_RESOL
     last_bar = int(np.ceil(last_note_time / BAR_RESOL)) - offset
+    
+    print(path_infile)
     print(' > offset:', offset)
     print(' > last_bar:', last_bar)
 
     # process quantized notes and tempo
-    emotion = _process_emotion(path_infile)
     note_grid = _process_notes(notes, tempo_changes, offset)
     tempo_grid = _process_tempo_changes(tempo_changes, offset)
     chord_grid = _process_chords(chords, offset)
+    
+    emotion = 0
+    if include_emotion:
+        emotion = process_emotion(path_infile)
 
     # create events
-    events = _create_events(emotion, note_grid, tempo_grid, chord_grid, last_bar)
+    events = _create_events(note_grid, tempo_grid, chord_grid, last_bar, emotion)
 
     # save
     fn = os.path.basename(path_outfile)
@@ -417,6 +422,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='encoder.py')
     parser.add_argument('--path_indir', type=str, required=True)
     parser.add_argument('--path_outdir', type=str, required=True)
+    parser.add_argument('--include_emotion', action='store_true')
+    parser.set_defaults(include_emotion=False)
     args = parser.parse_args()
 
     os.makedirs(args.path_outdir, exist_ok=True)
@@ -443,7 +450,7 @@ if __name__ == '__main__':
         path_outfile = '{}.txt'.format(out_filename)
 
         # append
-        data.append([path_infile, path_outfile])
+        data.append([path_infile, path_outfile, args.include_emotion])
 
     # run, multi-thread
     pool = mp.Pool()

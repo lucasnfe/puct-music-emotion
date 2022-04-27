@@ -5,24 +5,24 @@ import numpy as np
 from encoder import *
 from utils import traverse_dir
 
-def load_events_idx(path_infile):
+def load_events_idx(path_infile, bar_token):
     events_idx = []
     with open(path_infile) as f:
-        events_idx = [int(idx) for idx in f.read().split()]
-    return events_idx
+        bars = []
+        
+        b = []
+        for idx in f.read().split():
+            b.append(int(idx))
+            if int(idx) == bar_token:
+                bars.append(b)
+                b = []
+   
+        # Add end event to last bar
+        bars[-1] += b
 
-def load_emotion(events_idx):
-    emotions = []
-    for idx in events_idx:
-        event = Event.from_int(idx)
-        if event.type == 'emotion':
-            emotions.append(event.value)
+    return bars
 
-    # Make sure there's only one emotion event in a piece
-    assert len(emotions) == 1
-    return emotions[0]
-
-def compile(path_indir, max_len, ticks_per_beat=1024):
+def compile(path_indir, max_len, trim=False):
     # list files
     txtfiles = traverse_dir(
         path_indir,
@@ -34,6 +34,7 @@ def compile(path_indir, max_len, ticks_per_beat=1024):
 
     # Get pad token
     pad_token = Event(event_type='control', value=3).to_int()
+    bar_token = Event(event_type='control', value=1).to_int()
 
     pieces = []
     labels = []
@@ -43,20 +44,29 @@ def compile(path_indir, max_len, ticks_per_beat=1024):
 
         # Load events
         path_infile = os.path.join(path_indir, path_txt)
-        events_idx = load_events_idx(path_infile)
+        bars = load_events_idx(path_infile, bar_token)
 
         # Load emotion
-        emotion = load_emotion(events_idx)
+        emotion = process_emotion(path_txt)
 
         # Split the piece into sequences of len seq_len
-        for i in range(0, len(events_idx), max_len):
-            sequence = events_idx[i:i+max_len]
-            if len(sequence) < max_len:
-                # Pad sequence
-                sequence += [pad_token] * (max_len - len(sequence))
+        if trim:
+            i = 0
 
-            pieces.append(sequence)
-            labels.append(emotion)
+            #while i < len(bars):
+            piece = []
+            while i < len(bars) and len(piece) + len(bars[i]) <= max_len:
+                piece += bars[i]
+                i += 1
+
+            piece += [pad_token] * (max_len - len(piece))
+            print(piece)
+
+            pieces.append(piece)
+            labels.append([emotion])
+        else:
+            pass
+                
 
     pieces = np.vstack(pieces)
     labels = np.vstack(labels)
@@ -71,13 +81,15 @@ if __name__ == '__main__':
     parser.add_argument('--path_test_indir', type=str, required=True)
     parser.add_argument('--path_outdir', type=str, required=True)
     parser.add_argument('--max_len', type=int, required=True)
+    parser.add_argument('--trim', action='store_true')
+    parser.set_defaults(trim=False)
     args = parser.parse_args()
 
     os.makedirs(args.path_outdir, exist_ok=True)
 
     # Load datasets
-    train_pieces, train_labels = compile(args.path_train_indir, args.max_len)
-    test_pieces, test_labels = compile(args.path_test_indir, args.max_len)
+    train_pieces, train_labels = compile(args.path_train_indir, args.max_len, args.trim)
+    test_pieces, test_labels = compile(args.path_test_indir, args.max_len, args.trim)
 
     print('---')
     print(' > train x:', train_pieces.shape)

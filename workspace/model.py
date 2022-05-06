@@ -3,6 +3,9 @@ import torch
 
 from fast_transformers.masking import LengthMask, TriangularCausalMask
 from fast_transformers.builders import TransformerEncoderBuilder, RecurrentEncoderBuilder
+from encoder import Event
+
+PAD_TOKEN = Event(event_type='control', value=3).to_int()
 
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -48,10 +51,9 @@ class MusicGenerator(torch.nn.Module):
 
         self.predictor = torch.nn.Linear(d_model, n_tokens)
 
-    def forward(self, x, lengths=None):
-        length_mask = None
-        if lengths is not None:
-            length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
+    def forward(self, x):
+        lengths = (x != PAD_TOKEN).sum(dim=-1)
+        length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
 
         x = self.value_embedding(x) * math.sqrt(self.d_model)
         x = self.pos_embedding(x)
@@ -64,23 +66,9 @@ class MusicGenerator(torch.nn.Module):
         return y_hat
 
 class MusicEmotionClassifier(MusicGenerator):
-    def __init__(self, n_tokens, d_model, seq_len,
-                 attention_type="full", n_layers=4, n_heads=4,
-                 dropout=0.1, attention_dropout=0.1,
-                 feed_forward_dimensions=1024):
-
-        super(MusicEmotionClassifier, self).__init__(n_tokens, d_model, seq_len,
-                                                     attention_type, n_layers, n_heads,
-                                                     dropout, attention_dropout,
-                                                     feed_forward_dimensions)
-
-        self.classification_dropout = torch.nn.Dropout(0.1)
-        self.classification_head = torch.nn.Linear(n_tokens, 4)
-    
-    def forward(self, x, lengths=None):
-        length_mask = None
-        if lengths is not None:
-            length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
+    def forward(self, x):
+        lengths = (x != PAD_TOKEN).sum(dim=-1)
+        length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)
 
         x = self.value_embedding(x) * math.sqrt(self.d_model)
         x = self.pos_embedding(x)
@@ -90,7 +78,5 @@ class MusicEmotionClassifier(MusicGenerator):
 
         # Pool logits considering their lengths
         y_hat = y_hat[range(x.shape[0]), lengths - 1]
-        y_hat = self.classification_dropout(y_hat)
-        y_hat = self.classification_head(y_hat)
 
         return y_hat

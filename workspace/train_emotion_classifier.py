@@ -31,7 +31,7 @@ def train(model, train_data, test_data, epochs, lr, save_to):
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.75)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.95)
 
     for epoch in range(1, epochs + 1):
         epoch_start_time = time.time()
@@ -60,20 +60,19 @@ def train(model, train_data, test_data, epochs, lr, save_to):
             save_model(model, optimizer, epoch, save_to)
 
         print('-' * 89)
-        #scheduler.step()
+        scheduler.step()
 
 def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, log_interval=10):
     model.train()
     start_time = time.time()
 
     total_loss = 0
-    for batch, (x, y, lengths) in enumerate(train_data):
+    for batch, (x, y) in enumerate(train_data):
         # Forward pass
         x = x.to(device)
         y = y.to(device)
-        lengths = lengths.to(device)
 
-        y_hat = model(x, lengths)
+        y_hat = model(x)
 
         # Backward pass
         optimizer.zero_grad()
@@ -101,26 +100,24 @@ def log_stats(scheduler, epoch, batch, num_batches, total_loss, start_time, log_
 
     print(f'| epoch {epoch:3d} | {batch:5d}/{num_batches:5d} batches | '
           f'lr {lr:02.5f} | ms/batch {ms_per_batch:5.2f} | '
-          f'loss {cur_loss:5.2f}')
+          f'loss {cur_loss:5.5f}')
 
 def evaluate(model, test_data):
     model.eval()
 
     ys = []
     ys_hat = []
-
     with torch.no_grad():
-        for batch, (x, y, lengths) in enumerate(test_data):
+        for batch, (x, y) in enumerate(test_data):
             x = x.to(device)
             y = y.to(device)
-            lengths = lengths.to(device)
 
             # Evaluate
-            y_hat = model(x, lengths)
+            y_hat = model(x)
 
             # the class with the highest energy is what we choose as prediction
             _, y_hat = torch.max(y_hat.view(-1, 4).data, dim=1)
-
+       
             ys += y.squeeze().tolist()
             ys_hat += y_hat.tolist()
 
@@ -140,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
-    parser.add_argument('--d_model', type=int, default=256, help="Dimension of the query matrix.")
+    parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
     parser.add_argument('--save_to', type=str, required=True, help="Set a file to save the models to.")
     args = parser.parse_args()
@@ -151,17 +148,13 @@ if __name__ == '__main__':
     # Get pad token
     vocab_size = VOCAB_SIZE 
 
-    # Get pad token
-    pad_token = Event(event_type='control', value=3).to_int()
-    bar_token = Event(event_type='control', value=1).to_int()
-
     # Load data as a flat tensors
-    vgmidi_train = VGMidiLabelled(args.train, pad_token, bar_token, generate_prefixes=False)
-    vgmidi_test = VGMidiLabelled(args.test, pad_token, bar_token, generate_prefixes=False)
+    vgmidi_train = VGMidiLabelled(args.train)
+    vgmidi_test = VGMidiLabelled(args.test)
 
     # Batchfy flat tensor data
-    train_loader = torch.utils.data.DataLoader(vgmidi_train, batch_size=args.batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(vgmidi_test, batch_size=args.batch_size, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(vgmidi_train, batch_size=args.batch_size, shuffle=True, drop_last=False)
+    test_loader = torch.utils.data.DataLoader(vgmidi_test, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
     # Build linear transformer
     model = MusicEmotionClassifier(n_tokens=vocab_size,
@@ -174,13 +167,26 @@ if __name__ == '__main__':
     # Load model
     if args.model:
         print(f'> Fine-tuning model {args.model}')
-        model.load_state_dict(torch.load(args.model, map_location=device)["model_state"], strict=False)
-
-
+        model.load_state_dict(torch.load(args.model, map_location=device)["model_state"])
+   
     # Lock paramters and reset last l
-    #for i, layer in enumerate(model.transformer.layers):
-    #    if i < 0:
-    #        for param in layer.parameters():
-    #            param.requires_grad = False
+    for param in model.pos_embedding.parameters():
+        param.requires_grad = False
+    
+    for param in model.value_embedding.parameters():
+        param.requires_grad = False
+    
+    for i, layer in enumerate(model.transformer.layers):
+        if i < args.n_layers - 0:
+            for param in layer.parameters():
+                param.requires_grad = False
+
+    for param in model.predictor.parameters():
+        param.requires_grad = True
+    
+    # Add classification head
+    model = torch.nn.Sequential(model,
+                                torch.nn.Dropout(0.0),
+                                torch.nn.Linear(vocab_size, 4)).to(device)
 
     train(model, train_loader, test_loader, args.epochs, args.lr, args.save_to)

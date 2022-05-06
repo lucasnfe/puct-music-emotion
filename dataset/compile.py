@@ -6,10 +6,9 @@ from encoder import *
 from utils import traverse_dir
 
 def load_events_idx(path_infile, bar_token):
-    events_idx = []
-    with open(path_infile) as f:
-        bars = []
-        
+    bars = []
+    
+    with open(path_infile) as f:    
         b = []
         for idx in f.read().split():
             b.append(int(idx))
@@ -57,16 +56,20 @@ def compile(path_indir, max_len, trim=False):
             piece = []
             while i < len(bars) and len(piece) + len(bars[i]) <= max_len:
                 piece += bars[i]
+                
                 i += 1
-
+                #print(piece)
+                #if i % 2 == 0:
+                pieces.append(piece + [pad_token] * (max_len - len(piece)))
+                labels.append([emotion])
+            
             piece += [pad_token] * (max_len - len(piece))
-            print(piece)
-
-            pieces.append(piece)
-            labels.append([emotion])
+            if piece != pieces[-1]:
+                print("different!")
+                pieces.append(piece)
+                labels.append([emotion])
         else:
             pass
-                
 
     pieces = np.vstack(pieces)
     labels = np.vstack(labels)

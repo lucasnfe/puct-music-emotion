@@ -2,22 +2,25 @@ import torch
 import numpy as np
 import plotext as plt
 
+from encoder import *
 from generate import *
 
-END_TOKEN = 389
+END_TOKEN = Event(event_type='control', value=2).to_int()
+BAR_TOKEN = Event(event_type='control', value=1).to_int()
 
 class MCTS:
     "Monte Carlo tree searcher. First rollout the tree then choose a move."
-    def __init__(self, language_model, classifiers, emotion, vocab_size, device, gen_len=512, temperature=1.0, k=0, c=1):
+    def __init__(self, language_model, emotion_classifier, emotion, vocab_size, device, pad_token, gen_len=512, temperature=1.0, k=0, c=1):
         self.Qsa = {} # stores Q values for s,a (as defined in the paper)
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
         self.Ns  = {}
 
         self.language_model = language_model
-        self.classifiers = classifiers
+        self.emotion_classifier = emotion_classifier
         self.emotion = emotion
         self.device = device
+        self.pad_token = pad_token
 
         self.k = k
         self.c = c
@@ -123,11 +126,8 @@ class MCTS:
         return value
 
     def _expand(self, state):
-        #print("\t expand:", state)
+        print("\t expand:", state)
         y_i = self.language_model(state)[:,-1,:]
-
-        status_notes, _, _ = get_piece_status(state[-1].tolist())
-        y_i = filter_note_off(y_i, status_notes)
 
         if self.k > 0:
             y_i = filter_top_k(y_i, self.k)
@@ -136,64 +136,49 @@ class MCTS:
 
         return y_i.squeeze()
 
-    def _rollout(self, state, depth=128):
-        "Returns the reward for a random simulation (to completion) of `node`"
-        memory = None
+    def _rollout(self, state, depth=1):
         piece = torch.clone(state)
 
-        # Process current state
-        log_prob = torch.zeros(1).to(self.device)
-        for i in range(piece.shape[1]):
-            x_i = piece[:,i:i+1]
+        n_bars = 0
+        #for token in state.squeeze():
+        #    if int(token) == BAR_TOKEN:
+        #        n_bars += 1
 
-            if i > 0:
-                log_prob += torch.log(torch.softmax(y_i, dim=1)[:,x_i.squeeze()])
-
-            y_i, memory = self.recurent_language_model(x_i, i=i, memory=memory)
-
-        i = piece.shape[1]
-        while (i % depth != 0) and (not self._is_terminal(piece)):
-            status_notes, _, _ = get_piece_status(piece[-1].tolist())
-            y_i = filter_note_off(y_i, status_notes)
-
+        while n_bars == 0 or (n_bars % depth != 0 and (not self._is_terminal(piece))):
+            y_i = self.language_model(piece)[:,-1,:]
+            
             # Sample new token
             if self.k > 0:
                 y_i = filter_top_k(y_i, self.k)
 
             # sample new token
-            x_i = sample_tokens(y_i)
+            token = sample_tokens(y_i)
 
-            # Accumulate probability
-            log_prob += torch.log(torch.softmax(y_i, dim=1)[:,x_i.squeeze()])
+            if int(token) == BAR_TOKEN:
+                n_bars += 1
 
             # Concatenate to current state
-            piece = torch.cat((piece, x_i), dim=1)
+            piece = torch.cat((piece, token), dim=1)
 
-            y_i, memory = self.recurent_language_model(x_i, i=i, memory=memory)
-            i += 1
-
-        return piece, log_prob
+        return piece
 
     def _reward(self, state):
         "Returns the reward for a random simulation (to completion) of `node`"
-        # roll_state, roll_log_prob = self._rollout(state)
-        print("continuation", state)
+        roll_state = self._rollout(state, depth=1)
+        print("continuation", roll_state)
+
+        #pad = torch.full((1, 1024 - roll_state.shape[-1]), self.pad_token, dtype=int).to(self.device)
+        #roll_state = torch.cat((roll_state, pad), dim=1)
 
         # Emotion score
-        clf_scores = torch.ones(1).to(self.device)
-        for clf in self.classifiers:
-            y_hat = clf(state)
-
-            if y_hat.shape[-1] == 1:
-                clf_scores *= torch.sigmoid(y_hat).squeeze()
-            else:
-                clf_scores *= torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
+        y_hat = self.emotion_classifier(roll_state)
+        emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
 
         min_score = 0.0
         max_score = 1.0
 
         reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
-        reward = reward_fn(clf_scores, min_score, max_score, -1.0, 1.0)
+        reward = reward_fn(emotion_score, min_score, max_score, -1.0, 1.0)
 
         print("reward", reward)
         return reward
@@ -209,6 +194,7 @@ class MCTS:
                 u = self.Qsa[(s, token)] + self.c * self.Ps[s][token] * np.sqrt(self.Ns[s]) / (
                         1 + self.Nsa[(s, token)])
             else:
+                #return token
                 u = self.c * self.Ps[s][token] * np.sqrt(self.Ns[s] + eps)
 
             if u > cur_best:

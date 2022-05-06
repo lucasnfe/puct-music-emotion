@@ -84,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--p', type=float, default=1.0, help="Probability p to consider while sampling.")
     parser.add_argument('--t', type=float, default=1.0, help="Sampling temperature.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
-    parser.add_argument('--d_model', type=int, default=256, help="Dimension of the query matrix.")
+    parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
     parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--device', type=str, default=None, help="Torch device.")

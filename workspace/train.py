@@ -66,13 +66,12 @@ def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, lo
     start_time = time.time()
 
     total_loss = 0
-    for batch, (x, y, lengths) in enumerate(train_data):
+    for batch, (x, y) in enumerate(train_data):
         # Forward pass
         x = x.to(device)
         y = y.to(device)
-        lengths = lengths.to(device)
 
-        y_hat = model(x, lengths)
+        y_hat = model(x)
 
         # Backward pass
         optimizer.zero_grad()
@@ -111,13 +110,12 @@ def evaluate(model, test_data, criterion):
     total_loss = 0
     total_samples = 0
     with torch.no_grad():
-        for batch, (x, y, lengths) in enumerate(test_data):
+        for batch, (x, y) in enumerate(test_data):
             x = x.to(device)
             y = y.to(device)
-            lengths = lengths.to(device)
 
             # Evaluate
-            y_hat = model(x, lengths)
+            y_hat = model(x)
             loss = criterion(y_hat.view(-1, vocab_size), y.view(-1))
 
             total_loss += x.shape[0] * loss.item()
@@ -132,13 +130,12 @@ if __name__ == '__main__':
     parser.add_argument('--test', type=str, required=True, help="Path to test data directory.")
     parser.add_argument('--model', type=str, default=None, help="Path to load model from.")
     parser.add_argument('--epochs', type=int, default=100, help="Epochs to train.")
-    parser.add_argument('--batch_size', type=int, default=32, help="Batch size.")
+    parser.add_argument('--batch_size', type=int, default=16, help="Batch size.")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
-    parser.add_argument('--d_model', type=int, default=256, help="Dimension of the query matrix.")
+    parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
-    parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--save_to', type=str, required=True, help="Set a file to save the models to.")
     args = parser.parse_args()
 

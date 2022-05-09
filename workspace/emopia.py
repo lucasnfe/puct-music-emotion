@@ -10,8 +10,7 @@ class Emopia(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         x = self.pieces[idx][:-1]
         y = self.pieces[idx][1:]
-        lengths = (x != self.pad_token).sum(dim=-1) 
-        return x, y, lengths
+        return x, y
 
     def __len__(self):
         return len(self.pieces)

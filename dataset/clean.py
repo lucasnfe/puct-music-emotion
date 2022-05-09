@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
         # Get piece emotion
         emotion = (0, 0)
-        if path_midi in emotion_annotation:
+        if emotion_annotation and path_midi in emotion_annotation:
             emotion = emotion_annotation[path_midi]
 
         path_midi_basename = os.path.basename(path_midi)

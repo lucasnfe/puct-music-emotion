@@ -44,14 +44,14 @@ def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len):
 
     return emotion_classifier
 
-def generate(language_model, emotion_classifier, emotion, gen_len, vocab_size, piece, roll_steps=30, temperature=1.0, k=0, c=1.0):
+def generate(language_model, emotion_classifier, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, temperature=1.0, k=0, c=1.0):
     tree = MCTS(language_model,
                 emotion_classifier,
                 emotion,
                 vocab_size,
                 device,
-                pad_token,
-                gen_len,
+                n_bars,
+                seq_len,
                 temperature, k, c)
 
     # Init mucts
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument('--k', type=int, default=0, help="Number k of elements to consider while sampling.")
     parser.add_argument('--c', type=float, default=1.0, help="Constant c for puct.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
-    parser.add_argument('--gen_len', type=int, default=512, help="Max sequence to process.")
+    parser.add_argument('--n_bars', type=int, default=4, help="Num bars to generate.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
     parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
@@ -121,6 +121,7 @@ if __name__ == "__main__":
              Event(event_type='beat', value=0).to_int()]
     prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
 
-    piece = generate(language_model, emotion_classifier, opt.emotion, opt.gen_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
+    piece = generate(language_model, emotion_classifier, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
     decode_midi(piece, opt.save_to)
     print(piece)
+

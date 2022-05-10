@@ -10,7 +10,7 @@ BAR_TOKEN = Event(event_type='control', value=1).to_int()
 
 class MCTS:
     "Monte Carlo tree searcher. First rollout the tree then choose a move."
-    def __init__(self, language_model, emotion_classifier, emotion, vocab_size, device, pad_token, gen_len=512, temperature=1.0, k=0, c=1):
+    def __init__(self, language_model, emotion_classifier, emotion, vocab_size, device, n_bars, seq_len=1024, temperature=1.0, k=0, c=1):
         self.Qsa = {} # stores Q values for s,a (as defined in the paper)
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
@@ -20,11 +20,11 @@ class MCTS:
         self.emotion_classifier = emotion_classifier
         self.emotion = emotion
         self.device = device
-        self.pad_token = pad_token
 
         self.k = k
         self.c = c
-        self.gen_len = gen_len
+        self.seq_len = seq_len
+        self.n_bars = n_bars
         self.vocab_size = vocab_size
         self.temperature = temperature
 
@@ -57,30 +57,20 @@ class MCTS:
         s = self._get_string_representation(state)
 
         N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
-        print(N)
         N = N**(1./self.temperature)
         N = N/np.sum(N)
+        print(N)
 
         self.diff_distros(self.Ps[s].cpu().numpy(), N)
 
         next_token = np.random.choice(len(N), p=N)
         return next_token
-        # return np.argmax(N)
-
-    # def choose(self, state):
-    #     "Choose the best successor of node. (Choose a move in the game)"
-    #     s = self._get_string_representation(state)
-    #
-    #     N = np.array([self.Qsa[(s, token)] if (s, token) in self.Qsa else float("-inf") for token in range(self.vocab_size)])
-    #     print(N)
-    #
-    #     return np.argmax(N)
 
     def _get_next_state(self, state, token):
         return torch.cat((state, torch.tensor([[token]]).to(self.device)), dim=1)
 
     def _is_terminal(self, state):
-        return state.shape[-1] >= self.gen_len or state[-1,-1] == END_TOKEN
+        return torch.sum(state == BAR_TOKEN) >= self.n_bars or state.shape[-1] >= self.seq_len or state[-1,-1] == END_TOKEN
 
     def _get_string_representation(self, state):
         return " ".join([str(int(token)) for token in state[-1]])
@@ -97,9 +87,6 @@ class MCTS:
             # leaf node
             self.Ps[s] = self._expand(state)
             self.Ns[s] = 0
-
-            # self.Qsa[s] = torch.zeros(self.vocab_size).to(self.device)
-            # self.Nsa[s] = torch.zeros(self.vocab_size).to(self.device)
 
             value = self._reward(state)
             return value
@@ -128,6 +115,9 @@ class MCTS:
     def _expand(self, state):
         print("\t expand:", state)
         y_i = self.language_model(state)[:,-1,:]
+        
+        # Filter out end token
+        y_i[-1][END_TOKEN] = float('-inf')
 
         if self.k > 0:
             y_i = filter_top_k(y_i, self.k)
@@ -140,18 +130,16 @@ class MCTS:
         piece = torch.clone(state)
 
         n_bars = 0
-        #for token in state.squeeze():
-        #    if int(token) == BAR_TOKEN:
-        #        n_bars += 1
-
-        while n_bars == 0 or (n_bars % depth != 0 and (not self._is_terminal(piece))):
+        while (n_bars == 0 or n_bars % depth != 0) and not self._is_terminal(piece):
             y_i = self.language_model(piece)[:,-1,:]
+            
+            # Filter out end token
+            y_i[-1][END_TOKEN] = float('-inf')
             
             # Sample new token
             if self.k > 0:
                 y_i = filter_top_k(y_i, self.k)
-
-            # sample new token
+            
             token = sample_tokens(y_i)
 
             if int(token) == BAR_TOKEN:
@@ -166,9 +154,6 @@ class MCTS:
         "Returns the reward for a random simulation (to completion) of `node`"
         roll_state = self._rollout(state, depth=1)
         print("continuation", roll_state)
-
-        #pad = torch.full((1, 1024 - roll_state.shape[-1]), self.pad_token, dtype=int).to(self.device)
-        #roll_state = torch.cat((roll_state, pad), dim=1)
 
         # Emotion score
         y_hat = self.emotion_classifier(roll_state)
@@ -202,3 +187,4 @@ class MCTS:
                 best_token = token
 
         return best_token
+

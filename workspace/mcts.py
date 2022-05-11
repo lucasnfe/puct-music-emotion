@@ -120,7 +120,7 @@ class MCTS:
         y_i[-1][END_TOKEN] = float('-inf')
 
         if self.k > 0:
-            y_i = filter_top_k(y_i, self.k)
+            y_i = filter_top_k(y_i, self.k * 4)
 
         y_i = torch.softmax(y_i, dim=1)
 
@@ -179,7 +179,6 @@ class MCTS:
                 u = self.Qsa[(s, token)] + self.c * self.Ps[s][token] * np.sqrt(self.Ns[s]) / (
                         1 + self.Nsa[(s, token)])
             else:
-                #return token
                 u = self.c * self.Ps[s][token] * np.sqrt(self.Ns[s] + eps)
 
             if u > cur_best:

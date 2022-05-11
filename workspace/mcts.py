@@ -120,7 +120,7 @@ class MCTS:
         y_i[-1][END_TOKEN] = float('-inf')
 
         if self.k > 0:
-            y_i = filter_top_k(y_i, self.k * 4)
+            y_i = filter_top_k(y_i, self.k)
 
         y_i = torch.softmax(y_i, dim=1)
 

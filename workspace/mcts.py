@@ -56,15 +56,19 @@ class MCTS:
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
 
-        N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
-        N = N**(1./self.temperature)
-        N = N/np.sum(N)
+        N = torch.zeros(1, self.vocab_size).to(self.device)
+        for token in range(self.vocab_size):
+            if (s, token) in self.Nsa:
+                N[:,token] = self.Nsa[(s, token)]
+       
+        N = N/torch.sum(N)
         print(N)
+        
+        self.diff_distros(self.Ps[s].cpu().numpy(), N.squeeze(0).cpu().numpy())
 
-        self.diff_distros(self.Ps[s].cpu().numpy(), N)
+        next_token = torch.multinomial(N, num_samples=1)
 
-        next_token = np.random.choice(len(N), p=N)
-        return next_token
+        return int(next_token)
 
     def _get_next_state(self, state, token):
         return torch.cat((state, torch.tensor([[token]]).to(self.device)), dim=1)

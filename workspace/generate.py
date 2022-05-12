@@ -5,6 +5,7 @@
 #
 #
 
+import os
 import torch
 import json
 import math
@@ -88,6 +89,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
     parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--device', type=str, default=None, help="Torch device.")
+    parser.add_argument('--save_to', type=str, required=True, help="Directory to save the generated samples.")
+    parser.add_argument('--n_samples', type=int, default=1, help="Number of samples to generate.")
     opt = parser.parse_args()
 
     # Set up torch device
@@ -111,12 +114,15 @@ if __name__ == '__main__':
 
     # Define prime sequence
     prime = [Event(event_type='control', value=0).to_int(), 
-             Event(event_type='emotion', value=opt.emotion).to_int()]
-    #prime = [439,434,0,49,192,252,298,388,248,282,352,1,248,305,383,2,248,305,395,3,248,305,383,4,192,249,305,393,5,248,304,383,6,248,304,391,7,248,305,383,8,192,250,305,390,9,48,248,304,383,10,48,248,304,391,11,48,248,305,383,12,192,249,305,390,13,48,248,304,383,14,48,248,304,388,15,248,305,383,440]
-    #prime = [439,437,0,49,134,254,290,372,254,294,346,1,2,254,294,346,3,4,126,254,286,373,254,294,346,5,6,254,294,346,7,8,9,10,11,12,254,290,372,254,294,346,13,14,254,294,344,15,440]
+             Event(event_type='emotion', value=opt.emotion).to_int(),
+             Event(event_type='beat', value=0).to_int()]
+
+    # Mkdir
+    os.makedirs(opt.save_to, exist_ok=True)
 
     # Generate continuation
-    # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
-    piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
-    decode_midi(piece, "results/generated_piece.mid")
-    print(piece)
+    for i in range(opt.n_samples):
+        # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
+        piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
+        decode_midi(piece, os.path.join(opt.save_to, "generated_piece_{}.mid".format(i)))
+        print(piece)

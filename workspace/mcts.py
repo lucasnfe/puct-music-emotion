@@ -155,10 +155,10 @@ class MCTS:
 
         return piece
 
-    def _reward(self, state):
+    def _reward(self, roll_state):
         "Returns the reward for a random simulation (to completion) of `node`"
-        roll_state = self._rollout(state, depth=1)
-        print("continuation", roll_state)
+        #roll_state = self._rollout(state, depth=1)
+        #print("continuation", roll_state)
 
         # Emotion score
         y_hat = self.emotion_classifier(roll_state)

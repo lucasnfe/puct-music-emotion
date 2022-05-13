@@ -165,7 +165,7 @@ class MCTS:
         emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
 
         # Discriminator score
-        y_hat = self.discriminator(state)
+        y_hat = self.discriminator(roll_state)
         discriminator_score = torch.sigmoid(y_hat).squeeze()
         
         #min_score = 0.0
@@ -174,7 +174,6 @@ class MCTS:
         #reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
         #reward = reward_fn(emotion_score * discriminator_score, min_score, max_score, -1.0, 1.0)
         reward = emotion_score * discriminator_score
-
 
         print("reward", emotion_score, discriminator_score, reward)
         return reward

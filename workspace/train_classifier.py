@@ -5,7 +5,7 @@ import numpy as np
 
 from vgmidi import VGMidiLabelled
 from sklearn.metrics import confusion_matrix
-from model import MusicEmotionClassifier
+from model import MusicClassifier
 
 from encoder import *
 
@@ -29,7 +29,11 @@ def train(model, train_data, test_data, epochs, lr, save_to):
     best_model = None
     best_val_accuracy = 0
 
-    criterion = torch.nn.CrossEntropyLoss()
+    if args.out_size == 1:
+        criterion = torch.nn.BCEWithLogitsLoss()
+    else:
+        criterion = torch.nn.CrossEntropyLoss()
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.95)
 
@@ -76,7 +80,12 @@ def train_step(model, train_data, epoch, lr, criterion, optimizer, scheduler, lo
 
         # Backward pass
         optimizer.zero_grad()
-        loss = criterion(y_hat.view(-1, 4), y.view(-1))
+        
+        if args.out_size == 1:
+            loss = criterion(y_hat.view(-1), y.view(-1))
+        else:
+            loss = criterion(y_hat.view(-1, args.out_size), y.view(-1))
+        
         loss.backward()
         #torch.nn.utils.clip_grad_norm_(model.parameters(), 3)
         optimizer.step()
@@ -116,10 +125,16 @@ def evaluate(model, test_data):
             y_hat = model(x)
 
             # the class with the highest energy is what we choose as prediction
-            _, y_hat = torch.max(y_hat.view(-1, 4).data, dim=1)
-       
+            if args.out_size == 1:
+                y_hat = torch.round(torch.sigmoid(y_hat)).squeeze()
+            else:
+                _, y_hat = torch.max(y_hat.view(-1, args.out_size).data, dim=1)
+            
             ys += y.squeeze().tolist()
             ys_hat += y_hat.tolist()
+
+    print(ys)
+    print(ys_hat)
 
     accuracy = np.mean(np.array(ys) == np.array(ys_hat))
     confusion = confusion_matrix(ys, ys_hat)
@@ -140,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
     parser.add_argument('--save_to', type=str, required=True, help="Set a file to save the models to.")
+    parser.add_argument('--out_size', type=int, required=True, help="Output size.")
     args = parser.parse_args()
 
     # Set up torch device
@@ -157,7 +173,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(vgmidi_test, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
     # Build linear transformer
-    model = MusicEmotionClassifier(n_tokens=vocab_size,
+    model = MusicClassifier(n_tokens=vocab_size,
                             d_model=args.d_model,
                             seq_len=args.seq_len,
                      attention_type="linear",
@@ -187,6 +203,6 @@ if __name__ == '__main__':
     # Add classification head
     model = torch.nn.Sequential(model,
                                 torch.nn.Dropout(0.0),
-                                torch.nn.Linear(vocab_size, 4)).to(device)
+                                torch.nn.Linear(vocab_size, args.out_size)).to(device)
 
     train(model, train_loader, test_loader, args.epochs, args.lr, args.save_to)

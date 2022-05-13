@@ -10,7 +10,7 @@ BAR_TOKEN = Event(event_type='control', value=1).to_int()
 
 class MCTS:
     "Monte Carlo tree searcher. First rollout the tree then choose a move."
-    def __init__(self, language_model, emotion_classifier, emotion, vocab_size, device, n_bars, seq_len=1024, temperature=1.0, k=0, c=1):
+    def __init__(self, language_model, emotion_classifier, discriminator, emotion, vocab_size, device, n_bars, seq_len=1024, temperature=1.0, k=0, c=1):
         self.Qsa = {} # stores Q values for s,a (as defined in the paper)
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
@@ -18,6 +18,7 @@ class MCTS:
 
         self.language_model = language_model
         self.emotion_classifier = emotion_classifier
+        self.discriminator = discriminator
         self.emotion = emotion
         self.device = device
 
@@ -163,13 +164,19 @@ class MCTS:
         y_hat = self.emotion_classifier(roll_state)
         emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
 
-        min_score = 0.0
-        max_score = 1.0
+        # Discriminator score
+        y_hat = self.discriminator(state)
+        discriminator_score = torch.sigmoid(y_hat).squeeze()
+        
+        #min_score = 0.0
+        #max_score = 1.0
 
-        reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
-        reward = reward_fn(emotion_score, min_score, max_score, -1.0, 1.0)
+        #reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
+        #reward = reward_fn(emotion_score * discriminator_score, min_score, max_score, -1.0, 1.0)
+        reward = emotion_score * discriminator_score
 
-        print("reward", reward)
+
+        print("reward", emotion_score, discriminator_score, reward)
         return reward
 
     def _select(self, s, eps=1e-8):

@@ -65,7 +65,7 @@ class MusicGenerator(torch.nn.Module):
 
         return y_hat
 
-class MusicEmotionClassifier(MusicGenerator):
+class MusicClassifier(MusicGenerator):
     def forward(self, x):
         lengths = (x != PAD_TOKEN).sum(dim=-1)
         length_mask = LengthMask(lengths, max_len=x.shape[1], device=x.device)

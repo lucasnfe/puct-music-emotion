@@ -24,9 +24,9 @@ def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len):
 
     return language_model
 
-def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len):
+def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len, out_size):
     # Load Emotion Classifier
-    emotion_classifier = MusicEmotionClassifier(n_tokens=vocab_size,
+    emotion_classifier = MusicClassifier(n_tokens=vocab_size,
                             d_model=d_model,
                             seq_len=seq_len,
                      attention_type="linear",
@@ -35,8 +35,8 @@ def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len):
 
    # Add classification head
     emotion_classifier = torch.nn.Sequential(emotion_classifier,
-                                torch.nn.Dropout(0.1),
-                                torch.nn.Linear(vocab_size, 4)).to(device)
+                                torch.nn.Dropout(0.0),
+                                torch.nn.Linear(vocab_size, out_size)).to(device)
 
 
     emotion_classifier.load_state_dict(torch.load(model, map_location=device)["model_state"])
@@ -44,9 +44,10 @@ def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len):
 
     return emotion_classifier
 
-def generate(language_model, emotion_classifier, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, temperature=1.0, k=0, c=1.0):
+def generate(language_model, emotion_classifier, discriminator, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, temperature=1.0, k=0, c=1.0):
     tree = MCTS(language_model,
                 emotion_classifier,
+                discriminator,
                 emotion,
                 vocab_size,
                 device,
@@ -80,6 +81,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='genrate_mcts.py')
     parser.add_argument('--lm', type=str, required=True, help="Path to load language model from.")
     parser.add_argument('--clf', type=str, required=True, help="Path to load emotion classifier from.")
+    parser.add_argument('--disc', type=str, required=True, help="Path to load discriminator from.")
     parser.add_argument('--emotion', type=int, required=True, help="Piece emotion.")
     parser.add_argument('--roll_steps', type=int, default=30, help="Number rollout steps.")
     parser.add_argument('--k', type=int, default=0, help="Number k of elements to consider while sampling.")
@@ -112,8 +114,11 @@ if __name__ == "__main__":
     print(f'> Loaded language model {opt.lm}')
 
     # Load emotion classifier
-    emotion_classifier = load_classifier(opt.clf, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len)
+    emotion_classifier = load_classifier(opt.clf, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=4)
     print(f'> Loaded emotion classifier {opt.clf}')
+    
+    discriminator = load_classifier(opt.disc, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=1)
+    print(f'> Loaded discriminator {opt.disc}')
 
     # Define prime sequence
     prime = [Event(event_type='control', value=0).to_int(),
@@ -121,7 +126,7 @@ if __name__ == "__main__":
              Event(event_type='beat', value=0).to_int()]
     prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
 
-    piece = generate(language_model, emotion_classifier, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
+    piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
     decode_midi(piece, opt.save_to)
     print(piece)
 

@@ -27,7 +27,7 @@ def load_events(path_infile):
         events_idx = [int(idx) for idx in f.read().split()]
     return events_idx
 
-def compile(path_indir, max_len, is_classification=False):
+def compile(path_indir, max_len, task='language_modeling'):
     # list files
     txtfiles = traverse_dir(
         path_indir,
@@ -50,10 +50,13 @@ def compile(path_indir, max_len, is_classification=False):
         path_infile = os.path.join(path_indir, path_txt)
 
         # Load emotion
-        emotion = process_emotion(path_txt)
+        emotion = process_emotion(path_txt) - 1
+        
+        # Load origin (real vs fake)
+        origin = process_origin(path_txt)
 
         # Split the piece into sequences of len seq_len
-        if is_classification:
+        if task == 'emotion_classification' or task == 'discriminator':
             i = 0
             
             # Load events
@@ -65,8 +68,15 @@ def compile(path_indir, max_len, is_classification=False):
                 
                 i += 1
                 pieces.append(piece + [pad_token] * (max_len - len(piece)))
-                labels.append([emotion])
-        else:
+                
+                if task == 'emotion_classification':
+                    labels.append([emotion])
+                elif task == 'discriminator':
+                    labels.append([origin])
+                else:
+                    raise ValueError('Invalid task.')
+        
+        elif task == 'language_modeling':
             # Load events
             events = load_events(path_infile)
             
@@ -78,7 +88,8 @@ def compile(path_indir, max_len, is_classification=False):
                     sequence += [pad_token] * (max_len - len(sequence))
 
                 pieces.append(sequence)
-                labels.append(emotion)
+        else:
+            raise ValueError('Invalid task.')
 
     pieces = np.vstack(pieces)
     labels = np.vstack(labels)
@@ -93,15 +104,14 @@ if __name__ == '__main__':
     parser.add_argument('--path_test_indir', type=str, required=True)
     parser.add_argument('--path_outdir', type=str, required=True)
     parser.add_argument('--max_len', type=int, required=True)
-    parser.add_argument('--add_prefix', action='store_true')
-    parser.set_defaults(trim=False)
+    parser.add_argument('--task', type=str, required=True)
     args = parser.parse_args()
 
     os.makedirs(args.path_outdir, exist_ok=True)
 
     # Load datasets
-    train_pieces, train_labels = compile(args.path_train_indir, args.max_len, args.add_prefix)
-    test_pieces, test_labels = compile(args.path_test_indir, args.max_len, args.add_prefix)
+    train_pieces, train_labels = compile(args.path_train_indir, args.max_len, args.task)
+    test_pieces, test_labels = compile(args.path_test_indir, args.max_len, args.task)
 
     print('---')
     print(' > train x:', train_pieces.shape)

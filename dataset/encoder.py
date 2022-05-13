@@ -34,6 +34,11 @@ EMOTION_MAP = {
     'e4' : 4
 }
 
+ORIGIN_MAP = {
+    'fake' : 0,
+    'real' : 1
+}
+
 DEGREE2PITCH = {
     0: 'C', 1: 'C#', 2: 'D', 3: 'D#', 4: 'E', 5: 'F',
     6: 'F#', 7: 'G', 8: 'G#', 9: 'A', 10: 'A#', 11: 'B'
@@ -193,6 +198,10 @@ def _process_notes(notes, tempo_changes, offset):
 def process_emotion(path_infile):
     path_basename = os.path.basename(path_infile)
     return EMOTION_MAP[path_basename.split('_')[0]]
+
+def process_origin(path_infile):
+    path_basename = os.path.basename(path_infile)
+    return ORIGIN_MAP[path_basename.split('_')[1]]
 
 def _process_tempo_changes(tempo_changes, offset):
     tempo_grid = collections.defaultdict(list)

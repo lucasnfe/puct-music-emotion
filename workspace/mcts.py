@@ -155,25 +155,32 @@ class MCTS:
 
         return piece
 
-    def _reward(self, roll_state):
+    def _reward(self, state):
         "Returns the reward for a random simulation (to completion) of `node`"
-        #roll_state = self._rollout(state, depth=1)
-        #print("continuation", roll_state)
-
-        # Emotion score
-        y_hat = self.emotion_classifier(roll_state)
-        emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
-
+        roll_state = self._rollout(state, depth=1)
+        print("continuation", roll_state)
+        
         # Discriminator score
         y_hat = self.discriminator(roll_state)
         discriminator_score = torch.sigmoid(y_hat).squeeze()
+
+        # Emotion score
+        y_hat = self.emotion_classifier(roll_state)
+        _, emotion_score = torch.max(y_hat.view(-1, 4).data, dim=1)
+        #emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
+
+        reward = 0.0
+        if int(emotion_score) == self.emotion:
+            reward = 1.0 * discriminator_score
+        else:
+            reward = -1.0 * (1.0 - discriminator_score)
         
         #min_score = 0.0
         #max_score = 1.0
 
         #reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
         #reward = reward_fn(emotion_score * discriminator_score, min_score, max_score, -1.0, 1.0)
-        reward = emotion_score * discriminator_score
+        #reward = emotion_score * discriminator_score
 
         print("reward", emotion_score, discriminator_score, reward)
         return reward

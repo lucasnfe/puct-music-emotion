@@ -56,19 +56,17 @@ class MCTS:
     def choose(self, state):
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
-
-        N = torch.zeros(1, self.vocab_size).to(self.device)
-        for token in range(self.vocab_size):
-            if (s, token) in self.Nsa:
-                N[:,token] = self.Nsa[(s, token)]
-       
-        N = N/torch.sum(N)
-        print(N)
         
-        self.diff_distros(self.Ps[s].cpu().numpy(), N.squeeze(0).cpu().numpy())
+        N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
+        print(N)
+        N = N**(1./self.temperature)
+        N = N/np.sum(N)
 
-        next_token = torch.multinomial(N, num_samples=1)
+        self.diff_distros(self.Ps[s].cpu().numpy(), N)
 
+        next_token = np.random.choice(len(N), p=N)
+        return next_token
+    
         return int(next_token)
 
     def _get_next_state(self, state, token):
@@ -126,13 +124,15 @@ class MCTS:
 
         if self.k > 0:
             y_i = filter_top_k(y_i, self.k)
-
         y_i = torch.softmax(y_i, dim=1)
 
         return y_i.squeeze()
 
     def _rollout(self, state, depth=1):
         piece = torch.clone(state)
+        
+        if int(piece[-1][-1]) == BAR_TOKEN:
+            return piece
 
         n_bars = 0
         while (n_bars == 0 or n_bars % depth != 0) and not self._is_terminal(piece):
@@ -173,7 +173,7 @@ class MCTS:
         if int(emotion_score) == self.emotion:
             reward = 1.0 * discriminator_score
         else:
-            reward = -1.0 * (1.0 - discriminator_score)
+            reward = -1.0# * (1.0 - discriminator_score)
         
         #min_score = 0.0
         #max_score = 1.0

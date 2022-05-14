@@ -126,6 +126,17 @@ if __name__ == "__main__":
              Event(event_type='beat', value=0).to_int()]
     prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
 
+    # Generate piece with mcts
+    print('> Starting to generate with MCTS')
+    print('-' * 50)
+    print('Parameters:')
+    print('k: {opt.k}')
+    print('c: {opt.c}')
+    print('Emotion: {opt.emotion}')
+    print('Rollout steps: {opt.roll_steps}')
+    print('Number of bars: {opt.n_bars}')
+    print('-' * 50)
+
     piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
     decode_midi(piece, opt.save_to)
     print(piece)

@@ -122,8 +122,8 @@ class MCTS:
         # Filter out end token
         y_i[-1][END_TOKEN] = float('-inf')
 
-        if self.k > 0:
-            y_i = filter_top_k(y_i, self.k)
+        #if self.k > 0:
+        #    y_i = filter_top_k(y_i, self.k)
         y_i = torch.softmax(y_i, dim=1)
 
         return y_i.squeeze()
@@ -173,7 +173,7 @@ class MCTS:
         if int(emotion_score) == self.emotion:
             reward = 1.0 * discriminator_score
         else:
-            reward = -1.0# * (1.0 - discriminator_score)
+            reward = -1.0 * (1.0 - discriminator_score)
         
         #min_score = 0.0
         #max_score = 1.0

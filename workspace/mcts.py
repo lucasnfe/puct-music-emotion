@@ -119,7 +119,7 @@ class MCTS:
         y_i = self.language_model(state)[:,-1,:]
         
         # Filter out end token
-        #y_i[-1][END_TOKEN] = float('-inf')
+        y_i[-1][END_TOKEN] = float('-inf')
 
         #if self.k > 0:
         #    y_i = filter_top_k(y_i, self.k)
@@ -138,7 +138,7 @@ class MCTS:
             y_i = self.language_model(piece)[:,-1,:]
             
             # Filter out end token
-            #y_i[-1][END_TOKEN] = float('-inf')
+            y_i[-1][END_TOKEN] = float('-inf')
             
             # Sample new token
             if self.k > 0:

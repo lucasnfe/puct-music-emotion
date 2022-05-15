@@ -65,7 +65,7 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
                 tree.step(piece)
 
             # Choose next state
-            token = tree.choose(piece, temperature=0.5)
+            token = tree.choose(piece)
             piece = tree._get_next_state(piece, token)
 
             if tree._is_terminal(piece):

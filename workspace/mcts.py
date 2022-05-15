@@ -10,7 +10,7 @@ BAR_TOKEN = Event(event_type='control', value=1).to_int()
 
 class MCTS:
     "Monte Carlo tree searcher. First rollout the tree then choose a move."
-    def __init__(self, language_model, emotion_classifier, discriminator, emotion, vocab_size, device, n_bars, seq_len=1024, temperature=1.0, k=0, c=1):
+    def __init__(self, language_model, emotion_classifier, discriminator, emotion, vocab_size, device, n_bars, seq_len=1024, k=0, c=1):
         self.Qsa = {} # stores Q values for s,a (as defined in the paper)
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
@@ -27,7 +27,6 @@ class MCTS:
         self.seq_len = seq_len
         self.n_bars = n_bars
         self.vocab_size = vocab_size
-        self.temperature = temperature
 
     def diff_distros(self, old, new):
         tokens = [i for i in range(self.vocab_size)]
@@ -53,13 +52,13 @@ class MCTS:
 
         plt.show()
 
-    def choose(self, state):
+    def choose(self, state, temperature=1.0):
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
         
         N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
         print(N)
-        N = N**(1./self.temperature)
+        N = N**(1./temperature)
         N = N/np.sum(N)
 
         self.diff_distros(self.Ps[s].cpu().numpy(), N)
@@ -120,7 +119,7 @@ class MCTS:
         y_i = self.language_model(state)[:,-1,:]
         
         # Filter out end token
-        y_i[-1][END_TOKEN] = float('-inf')
+        #y_i[-1][END_TOKEN] = float('-inf')
 
         #if self.k > 0:
         #    y_i = filter_top_k(y_i, self.k)
@@ -139,7 +138,7 @@ class MCTS:
             y_i = self.language_model(piece)[:,-1,:]
             
             # Filter out end token
-            y_i[-1][END_TOKEN] = float('-inf')
+            #y_i[-1][END_TOKEN] = float('-inf')
             
             # Sample new token
             if self.k > 0:

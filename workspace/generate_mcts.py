@@ -44,7 +44,7 @@ def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len, out_
 
     return emotion_classifier
 
-def generate(language_model, emotion_classifier, discriminator, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, temperature=1.0, k=0, c=1.0):
+def generate(language_model, emotion_classifier, discriminator, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, k=0, c=1.0):
     tree = MCTS(language_model,
                 emotion_classifier,
                 discriminator,
@@ -53,7 +53,7 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
                 device,
                 n_bars,
                 seq_len,
-                temperature, k, c)
+                k, c)
 
     # Init mucts
     try:
@@ -65,7 +65,7 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
                 tree.step(piece)
 
             # Choose next state
-            token = tree.choose(piece)
+            token = tree.choose(piece, temperature=0.5)
             piece = tree._get_next_state(piece, token)
 
             if tree._is_terminal(piece):

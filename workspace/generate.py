@@ -40,6 +40,12 @@ def filter_top_k(y_hat, k, filter_value=-float("Inf")):
 
     return y_hat
 
+def filter_index(y_hat, index, filter_value=-float("Inf")):
+    indices_to_remove = torch.zeros_like(y_hat, dtype=int)
+    indices_to_remove = indices_to_remove.scatter_(-1, indices_to_remove.new([[index]]), 1).eq(1)
+    y_hat = y_hat.masked_fill(indices_to_remove, -float("Inf"))
+    return y_hat
+
 def filter_repetition(previous_tokens, scores, penalty=1.0001):
     score = torch.gather(scores, 1, previous_tokens)
 

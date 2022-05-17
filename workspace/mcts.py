@@ -55,7 +55,7 @@ class MCTS:
     def choose(self, state, temperature=1.0):
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
-        
+       
         N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
         M = np.array([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else float('-inf') for token in range(self.vocab_size)])
         print(N)
@@ -63,11 +63,11 @@ class MCTS:
         N = N**(1./temperature)
         N = N/np.sum(N)
 
-        self.diff_distros(self.Ps[s].cpu().numpy(), N)
+        self.diff_distros(self.Ps[s], N)
 
-        #next_token = np.random.choice(len(N), p=N)
-        #return next_token
-        return np.argmax(M)
+        next_token = np.random.choice(len(N), p=N)
+        return next_token
+        #return np.argmax(N)
 
     def _get_next_state(self, state, token):
         return torch.cat((state, torch.tensor([[token]]).to(self.device)), dim=1)
@@ -83,16 +83,16 @@ class MCTS:
 
         "Make the tree one layer better. (Train for one iteration.)"
         if self._is_terminal(state):
-            value = self._reward(state)
-            return value
+            v = self._reward(state)
+            return v
 
         if s not in self.Ps:
             # leaf node
             self.Ps[s] = self._expand(state)
             self.Ns[s] = 0
 
-            value = self._reward(state)
-            return value
+            v = self._reward(state)
+            return v
 
         # Select next token
         token = self._select(s)
@@ -101,32 +101,32 @@ class MCTS:
         next_state = self._get_next_state(state, token)
 
         #print("\t selected:", token)
-        value = self.step(next_state)
+        v = self.step(next_state)
 
         if (s, token) in self.Qsa:
-            self.Qsa[(s, token)] = (self.Nsa[(s, token)] * self.Qsa[(s, token)] + value) / (self.Nsa[(s, token)] + 1)
+            self.Qsa[(s, token)] = (self.Nsa[(s, token)] * self.Qsa[(s, token)] + v) / (self.Nsa[(s, token)] + 1)
             self.Nsa[(s, token)] += 1
-
         else:
-            self.Qsa[(s, token)] = value
+            self.Qsa[(s, token)] = v
             self.Nsa[(s, token)] = 1
 
         self.Ns[s] += 1
 
-        return value
+        return v
 
     def _expand(self, state):
         print("\t expand:", state)
         y_i = self.language_model(state)[:,-1,:]
         
         # Filter out end token
-        y_i[-1][END_TOKEN] = float('-inf')
+        y_i = filter_index(y_i, END_TOKEN)
 
-        #if self.k > 0:
-        #    y_i = filter_top_k(y_i, self.k)
+        if self.k > 0:
+            y_i = filter_top_k(y_i, self.k)
+        
         y_i = torch.softmax(y_i, dim=1)
 
-        return y_i.squeeze()
+        return y_i.squeeze().cpu().numpy()
 
     def _rollout(self, state, depth=1):
         piece = torch.clone(state)
@@ -135,12 +135,12 @@ class MCTS:
             return piece
 
         n_bars = 0
-        while (n_bars == 0 or n_bars % depth != 0) and not self._is_terminal(piece):
+        while n_bars < depth and not self._is_terminal(piece):
             y_i = self.language_model(piece)[:,-1,:]
-            
+        
             # Filter out end token
-            y_i[-1][END_TOKEN] = float('-inf')
-            
+            y_i = filter_index(y_i, END_TOKEN)
+
             # Sample new token
             if self.k > 0:
                 y_i = filter_top_k(y_i, self.k)
@@ -161,35 +161,33 @@ class MCTS:
         print("continuation", roll_state)
         
         # Discriminator score
-        y_hat = self.discriminator(roll_state)
-        discriminator_score = torch.sigmoid(y_hat).squeeze()
+        #y_hat = self.discriminator(roll_state)
+        #discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = self.emotion_classifier(roll_state)
-        _, emotion_score = torch.max(y_hat.view(-1, 4).data, dim=1)
-        #emotion_score = torch.softmax(y_hat, dim=1)[:,self.emotion].squeeze()
+        _, emotion_hat = torch.max(y_hat.view(-1, 4).data, dim=1)
+        emotion_score = torch.softmax(y_hat, dim=1).squeeze()[self.emotion]
 
-        reward = 0.0
-        if int(emotion_score) == self.emotion:
-            reward = 1.0 * discriminator_score
-        else:
-            reward = -1.0 * (1.0 - discriminator_score)
+        #if emotion_hat == self.emotion:
+        #    reward = emotion_score * discriminator_score
+        #else:
+        #    reward = (emotion_score - 1.0) * (1.0 - discriminator_score)
         
-        #min_score = 0.0
-        #max_score = 1.0
+        if emotion_hat == self.emotion:
+            reward = emotion_score #discriminator_score
+        else:
+            reward = emotion_score - 1.0
 
-        #reward_fn = lambda x,a,b,c,d: (x - a) * (d - c) / (b - a) + c
-        #reward = reward_fn(emotion_score * discriminator_score, min_score, max_score, -1.0, 1.0)
-        #reward = emotion_score * discriminator_score
-
-        print("reward", emotion_score, discriminator_score, reward)
-        return reward
+        #print("reward", emotion_score, discriminator_score, reward)
+        print("reward", emotion_hat, reward)
+        return reward.cpu().numpy()
 
     def _select(self, s, eps=1e-8):
         cur_best = -float('inf')
         best_token = -1
 
-        top_k_filtered_tokens = np.where(self.Ps[s].cpu().numpy() > 0)[0]
+        top_k_filtered_tokens = np.where(self.Ps[s] > 0)[0]
 
         for token in top_k_filtered_tokens:
             if (s, token) in self.Qsa:
@@ -203,4 +201,3 @@ class MCTS:
                 best_token = token
 
         return best_token
-

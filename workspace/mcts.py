@@ -67,7 +67,7 @@ class MCTS:
 
         #next_token = np.random.choice(len(N), p=N)
         #return next_token
-        return np.argmax(M)
+        return np.argmax(N)
 
     def _get_next_state(self, state, token):
         return torch.cat((state, torch.tensor([[token]]).to(self.device)), dim=1)
@@ -121,8 +121,8 @@ class MCTS:
         # Filter out end token
         y_i = filter_index(y_i, END_TOKEN)
 
-        #if self.k > 0:
-        #    y_i = filter_top_k(y_i, self.k)
+        if self.k > 0:
+            y_i = filter_top_k(y_i, self.k)
         
         y_i = torch.softmax(y_i, dim=1)
 
@@ -142,8 +142,8 @@ class MCTS:
             y_i = filter_index(y_i, END_TOKEN)
 
             # Sample new token
-            #if self.k > 0:
-            #    y_i = filter_top_k(y_i, self.k)
+            if self.k > 0:
+                y_i = filter_top_k(y_i, self.k)
             
             token = sample_tokens(y_i)
 
@@ -161,8 +161,8 @@ class MCTS:
         print("continuation", roll_state)
         
         # Discriminator score
-        y_hat = self.discriminator(roll_state)
-        discriminator_score = torch.sigmoid(y_hat).squeeze()
+        #y_hat = self.discriminator(roll_state)
+        #discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = self.emotion_classifier(roll_state)
@@ -175,22 +175,21 @@ class MCTS:
         #    reward = (emotion_score - 1.0) * (1.0 - discriminator_score)
         
         if emotion_hat == self.emotion:
-            reward = emotion_score * discriminator_score
-            #reward = discriminator_score
+            reward = emotion_score
         else:
-            reward = (emotion_score - 1.0)# * (1.0 - discriminator_score)
+            reward = (emotion_score - 1.0)
 
-        print("reward", emotion_hat, discriminator_score, reward)
-        #print("reward", emotion_hat, reward)
+        #print("reward", emotion_hat, discriminator_score, reward)
+        print("reward", emotion_hat, reward)
         return reward.cpu().numpy()
 
     def _select(self, s, eps=1e-8):
         cur_best = -float('inf')
         best_token = -1
 
-        top_k_filtered_tokens = np.where(self.Ps[s] > 0)[0]
+        top_k_tokens = np.where(self.Ps[s] > 0)[0]
 
-        for token in top_k_filtered_tokens:
+        for token in top_k_tokens:
             if (s, token) in self.Qsa:
                 u = self.Qsa[(s, token)] + self.c * self.Ps[s][token] * np.sqrt(self.Ns[s]) / (
                         1 + self.Nsa[(s, token)])

@@ -57,6 +57,7 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
 
     # Init mucts
     try:
+        n_bars = 0
         while True:
             print("Current piece:", piece)
 
@@ -130,11 +131,11 @@ if __name__ == "__main__":
     print('> Starting to generate with MCTS')
     print('-' * 50)
     print('Parameters:')
-    print('k: {opt.k}')
-    print('c: {opt.c}')
-    print('Emotion: {opt.emotion}')
-    print('Rollout steps: {opt.roll_steps}')
-    print('Number of bars: {opt.n_bars}')
+    print(f'k: {opt.k}')
+    print(f'c: {opt.c}')
+    print(f'Emotion: {opt.emotion}')
+    print(f'Rollout steps: {opt.roll_steps}')
+    print(f'Number of bars: {opt.n_bars}')
     print('-' * 50)
 
     piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)

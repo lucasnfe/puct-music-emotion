@@ -170,10 +170,10 @@ class MCTS:
         emotion_hat = int(torch.argmax(y_hat))
         emotion_score = y_hat[self.emotion]
 
-        if emotion_hat == self.emotion:
-            reward = emotion_score
-        else:
-            reward = (emotion_score - 1.0)
+        #if emotion_hat == self.emotion:
+        reward = emotion_score
+        #else:
+        #    reward = (emotion_score - 1.0)
 
         print("reward", emotion_hat, reward)
         return reward

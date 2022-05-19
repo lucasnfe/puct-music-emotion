@@ -125,7 +125,6 @@ if __name__ == "__main__":
              Event(event_type='emotion', value=0).to_int(),
              Event(event_type='beat', value=0).to_int()]
     
-    
     with torch.no_grad():
         #prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
         prime = torch.tensor(prime, device=device)

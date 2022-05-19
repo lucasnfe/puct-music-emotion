@@ -55,28 +55,27 @@ class MCTS:
     def choose(self, state, temperature=1.0):
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
-       
-        N = np.array([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)])
-        M = np.array([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else float('-inf') for token in range(self.vocab_size)])
+
+        N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device)
+        M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else float('-inf') for token in range(self.vocab_size)], device=self.device)
         print(N)
         print(M)
         N = N**(1./temperature)
-        N = N/np.sum(N)
-
-        self.diff_distros(self.Ps[s], N)
+        
+        #self.diff_distros(self.Ps[s], N)
 
         #next_token = np.random.choice(len(N), p=N)
         #return next_token
-        return np.argmax(N)
+        return int(torch.argmax(N))
 
     def _get_next_state(self, state, token):
-        return torch.cat((state, torch.tensor([[token]]).to(self.device)), dim=1)
+        return torch.cat((state, torch.tensor([token], device=self.device)), dim=0)
 
     def _is_terminal(self, state):
-        return torch.sum(state == BAR_TOKEN) >= self.n_bars or state.shape[-1] >= self.seq_len or state[-1,-1] == END_TOKEN
+        return torch.sum(state == BAR_TOKEN) >= self.n_bars or len(state) >= self.seq_len or state[-1] == END_TOKEN
 
     def _get_string_representation(self, state):
-        return " ".join([str(int(token)) for token in state[-1]])
+        return " ".join([str(int(token)) for token in state])
 
     def step(self, state):
         s = self._get_string_representation(state)
@@ -114,50 +113,63 @@ class MCTS:
 
         return v
 
+    def _process_context(self, state):
+        i = 0
+        memory = None
+        for i in range(state.shape[-1]):
+            x_i = state[:,i:i+1]
+            y_i, memory = self.language_model(x_i, i=i, memory=memory)
+
+        return y_i, memory
+
     def _expand(self, state):
-        print("\t expand:", state)
-        y_i = self.language_model(state)[:,-1,:]
-        
-        # Filter out end token
-        y_i = filter_index(y_i, END_TOKEN)
-
-        if self.k > 0:
-            y_i = filter_top_k(y_i, self.k)
-        
-        y_i = torch.softmax(y_i, dim=1)
-
-        return y_i.squeeze().cpu().numpy()
-
-    def _rollout(self, state, depth=1):
-        piece = torch.clone(state)
-        
-        if int(piece[-1][-1]) == BAR_TOKEN:
-            return piece
-
-        n_bars = 0
-        while n_bars < depth and not self._is_terminal(piece):
-            y_i = self.language_model(piece)[:,-1,:]
+        with torch.no_grad():
+            print("\t expand:", state)
+            
+            y_i, _ = self._process_context(state.unsqueeze(0))
+            #y_i = self.language_model(state.unsqueeze(0))[:,-1,:]
         
             # Filter out end token
             y_i = filter_index(y_i, END_TOKEN)
 
-            # Sample new token
             if self.k > 0:
                 y_i = filter_top_k(y_i, self.k)
+        
+            return torch.softmax(y_i, dim=1).squeeze()
+
+    def _rollout(self, state, depth=1):
+        if int(state[-1]) == BAR_TOKEN:
+            return state.unsqueeze(0)
+        
+        with torch.no_grad():
+            n_bars = 0
             
-            token = sample_tokens(y_i)
+            roll_state = torch.clone(state).unsqueeze(0)
+            y_i, memory = self._process_context(roll_state)
 
-            if int(token) == BAR_TOKEN:
-                n_bars += 1
+            i = roll_state.shape[-1]
+            while n_bars < depth and not self._is_terminal(roll_state.squeeze()):
+                token = sample_tokens(y_i)
+                
+                if int(token) == BAR_TOKEN:
+                    n_bars += 1
 
-            # Concatenate to current state
-            piece = torch.cat((piece, token), dim=1)
+                # Concatenate to current state
+                roll_state = torch.cat((roll_state, token), dim=1)
+                
+                y_i, memory = self.language_model(token, i=i, memory=memory)    
+                y_i = filter_index(y_i, END_TOKEN)
+                if self.k > 0:
+                    y_i = filter_top_k(y_i, self.k)
+                
+                i += 1
 
-        return piece
+            return roll_state
 
     def _reward(self, state):
         "Returns the reward for a random simulation (to completion) of `node`"
         roll_state = self._rollout(state, depth=1)
+        #roll_state = state.unsqueeze(0)
         print("continuation", roll_state)
         
         # Discriminator score
@@ -165,29 +177,24 @@ class MCTS:
         #discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
-        y_hat = self.emotion_classifier(roll_state)
-        _, emotion_hat = torch.max(y_hat.view(-1, 4).data, dim=1)
-        emotion_score = torch.softmax(y_hat, dim=1).squeeze()[self.emotion]
-
-        #if emotion_hat == self.emotion:
-        #    reward = emotion_score * discriminator_score
-        #else:
-        #    reward = (emotion_score - 1.0) * (1.0 - discriminator_score)
+        y_hat = torch.softmax(self.emotion_classifier(roll_state), dim=1).squeeze()
         
+        emotion_hat = int(torch.argmax(y_hat))
+        emotion_score = y_hat[self.emotion]
+
         if emotion_hat == self.emotion:
             reward = emotion_score
         else:
             reward = (emotion_score - 1.0)
 
-        #print("reward", emotion_hat, discriminator_score, reward)
         print("reward", emotion_hat, reward)
-        return reward.cpu().numpy()
+        return reward
 
     def _select(self, s, eps=1e-8):
         cur_best = -float('inf')
         best_token = -1
-
-        top_k_tokens = np.where(self.Ps[s] > 0)[0]
+        
+        top_k_tokens = torch.where(self.Ps[s] > 0)[0].cpu().numpy()
 
         for token in top_k_tokens:
             if (s, token) in self.Qsa:
@@ -200,4 +207,4 @@ class MCTS:
                 cur_best = u
                 best_token = token
 
-        return best_token
+        return int(best_token)

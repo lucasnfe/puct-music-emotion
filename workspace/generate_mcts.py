@@ -11,10 +11,10 @@ from encoder import *
 from model import *
 
 def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len):
-    language_model = MusicGenerator(n_tokens=vocab_size,
+    language_model = RecurrentMusicGenerator(n_tokens=vocab_size,
                             d_model=d_model,
                             seq_len=seq_len,
-                     attention_type="causal-linear",
+                     attention_type="linear",
                            n_layers=n_layers,
                            n_heads=n_heads).to(device)
 
@@ -57,7 +57,6 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
 
     # Init mucts
     try:
-        n_bars = 0
         while True:
             print("Current piece:", piece)
 
@@ -125,7 +124,8 @@ if __name__ == "__main__":
     prime = [Event(event_type='control', value=0).to_int(),
              Event(event_type='emotion', value=0).to_int(),
              Event(event_type='beat', value=0).to_int()]
-    prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
+    #prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
+    prime = torch.tensor(prime, device=device)
 
     # Generate piece with mcts
     print('> Starting to generate with MCTS')

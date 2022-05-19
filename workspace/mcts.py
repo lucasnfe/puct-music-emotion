@@ -56,17 +56,18 @@ class MCTS:
         "Choose the best successor of node. (Choose a move in the game)"
         s = self._get_string_representation(state)
 
-        N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device)
+        N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device, dtype=torch.float)
         M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else float('-inf') for token in range(self.vocab_size)], device=self.device)
         print(N)
         print(M)
         N = N**(1./temperature)
         
         #self.diff_distros(self.Ps[s], N)
-
-        #next_token = np.random.choice(len(N), p=N)
-        #return next_token
-        return int(torch.argmax(N))
+        
+        next_token = torch.multinomial(N, num_samples=1)
+        #next_token = torch.argmax(N)
+        
+        return int(next_token)
 
     def _get_next_state(self, state, token):
         return torch.cat((state, torch.tensor([token], device=self.device)), dim=0)
@@ -113,21 +114,10 @@ class MCTS:
 
         return v
 
-    def _process_context(self, state):
-        i = 0
-        memory = None
-        for i in range(state.shape[-1]):
-            x_i = state[:,i:i+1]
-            y_i, memory = self.language_model(x_i, i=i, memory=memory)
-
-        return y_i, memory
-
     def _expand(self, state):
         with torch.no_grad():
             print("\t expand:", state)
-            
-            y_i, _ = self._process_context(state.unsqueeze(0))
-            #y_i = self.language_model(state.unsqueeze(0))[:,-1,:]
+            y_i = self.language_model(state.unsqueeze(0))[:,-1,:]
         
             # Filter out end token
             y_i = filter_index(y_i, END_TOKEN)
@@ -145,31 +135,29 @@ class MCTS:
             n_bars = 0
             
             roll_state = torch.clone(state).unsqueeze(0)
-            y_i, memory = self._process_context(roll_state)
-
-            i = roll_state.shape[-1]
+            
             while n_bars < depth and not self._is_terminal(roll_state.squeeze()):
+                y_i = self.language_model(roll_state)[:,-1,:]
+
+                # Filter out end token
+                y_i = filter_index(y_i, END_TOKEN)
+
+                if self.k > 0:
+                    y_i = filter_top_k(y_i, self.k)
+
                 token = sample_tokens(y_i)
-                
+
                 if int(token) == BAR_TOKEN:
                     n_bars += 1
 
                 # Concatenate to current state
                 roll_state = torch.cat((roll_state, token), dim=1)
                 
-                y_i, memory = self.language_model(token, i=i, memory=memory)    
-                y_i = filter_index(y_i, END_TOKEN)
-                if self.k > 0:
-                    y_i = filter_top_k(y_i, self.k)
-                
-                i += 1
-
             return roll_state
 
     def _reward(self, state):
         "Returns the reward for a random simulation (to completion) of `node`"
         roll_state = self._rollout(state, depth=1)
-        #roll_state = state.unsqueeze(0)
         print("continuation", roll_state)
         
         # Discriminator score

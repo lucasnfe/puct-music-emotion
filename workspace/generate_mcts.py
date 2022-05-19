@@ -11,10 +11,10 @@ from encoder import *
 from model import *
 
 def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len):
-    language_model = RecurrentMusicGenerator(n_tokens=vocab_size,
+    language_model = MusicGenerator(n_tokens=vocab_size,
                             d_model=d_model,
                             seq_len=seq_len,
-                     attention_type="linear",
+                     attention_type="causal-linear",
                            n_layers=n_layers,
                            n_heads=n_heads).to(device)
 
@@ -124,21 +124,24 @@ if __name__ == "__main__":
     prime = [Event(event_type='control', value=0).to_int(),
              Event(event_type='emotion', value=0).to_int(),
              Event(event_type='beat', value=0).to_int()]
-    #prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
-    prime = torch.tensor(prime, device=device)
+    
+    
+    with torch.no_grad():
+        #prime = torch.tensor(prime).unsqueeze(dim=0).to(device)
+        prime = torch.tensor(prime, device=device)
 
-    # Generate piece with mcts
-    print('> Starting to generate with MCTS')
-    print('-' * 50)
-    print('Parameters:')
-    print(f'k: {opt.k}')
-    print(f'c: {opt.c}')
-    print(f'Emotion: {opt.emotion}')
-    print(f'Rollout steps: {opt.roll_steps}')
-    print(f'Number of bars: {opt.n_bars}')
-    print('-' * 50)
+        # Generate piece with mcts
+        print('> Starting to generate with MCTS')
+        print('-' * 50)
+        print('Parameters:')
+        print(f'k: {opt.k}')
+        print(f'c: {opt.c}')
+        print(f'Emotion: {opt.emotion}')
+        print(f'Rollout steps: {opt.roll_steps}')
+        print(f'Number of bars: {opt.n_bars}')
+        print('-' * 50)
 
-    piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
-    decode_midi(piece, opt.save_to)
-    print(piece)
+        piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, k=opt.k, c=opt.c)
+        decode_midi(piece, opt.save_to)
+        print(piece)
 

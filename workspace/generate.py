@@ -93,8 +93,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
     parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
-    parser.add_argument('--beat_resol', type=int, default=1024, help="Ticks per beat.")
     parser.add_argument('--device', type=str, default=None, help="Torch device.")
+    parser.add_argument('--prime', type=str, required=False, help="Prime sequence.")
     parser.add_argument('--save_to', type=str, required=True, help="Directory to save the generated samples.")
     parser.add_argument('--n_samples', type=int, default=1, help="Number of samples to generate.")
     opt = parser.parse_args()
@@ -119,7 +119,10 @@ if __name__ == '__main__':
     model.eval()
 
     # Define prime sequence
-    prime = [Event(event_type='control', value=0).to_int(), 
+    if opt.prime:
+        prime = [int(c) for c in opt.prime.split()]
+    else:
+        prime = [Event(event_type='control', value=0).to_int(), 
              Event(event_type='emotion', value=opt.emotion).to_int(),
              Event(event_type='beat', value=0).to_int()]
 
@@ -130,5 +133,5 @@ if __name__ == '__main__':
     for i in range(opt.n_samples):
         # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
         piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
-        decode_midi(piece, os.path.join(opt.save_to, "generated_piece_{}.mid".format(i)))
+        decode_midi(piece, "{}_{}.mid".format(opt.save_to, i))
         print(piece)

@@ -121,7 +121,7 @@ class MCTS:
             y_i = self.language_model(state.unsqueeze(0))[:,-1,:]
         
             # Filter out end token
-            y_i = filter_index(y_i, END_TOKEN)
+            #y_i = filter_index(y_i, END_TOKEN)
 
             if self.k > 0:
                 y_i = filter_top_k(y_i, self.k)
@@ -141,7 +141,7 @@ class MCTS:
                 y_i = self.language_model(roll_state)[:,-1,:]
 
                 # Filter out end token
-                y_i = filter_index(y_i, END_TOKEN)
+                #y_i = filter_index(y_i, END_TOKEN)
 
                 if self.k > 0:
                     y_i = filter_top_k(y_i, self.k)

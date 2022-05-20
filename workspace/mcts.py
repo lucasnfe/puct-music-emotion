@@ -174,7 +174,7 @@ class MCTS:
         if emotion_hat == self.emotion:
             reward = emotion_score * discriminator_score
         else:
-            reward = (emotion_score - 1.0) * (1.0 - discriminator_score)
+            reward = (emotion_score - 1.0)# * (1.0 - discriminator_score)
 
         print("reward", emotion_hat, discriminator_score, reward)
         return reward

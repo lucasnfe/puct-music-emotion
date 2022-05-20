@@ -10,7 +10,7 @@ BAR_TOKEN = Event(event_type='control', value=1).to_int()
 
 class MCTS:
     "Monte Carlo tree searcher. First rollout the tree then choose a move."
-    def __init__(self, language_model, emotion_classifier, discriminator, emotion, vocab_size, device, n_bars, seq_len=1024, k=0, c=1):
+    def __init__(self, language_model, emotion_classifier, discriminator, emotion, vocab_size, device, n_bars, seq_len=1024, p=0, c=1):
         self.Qsa = {} # stores Q values for s,a (as defined in the paper)
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
@@ -22,7 +22,7 @@ class MCTS:
         self.emotion = emotion
         self.device = device
 
-        self.k = k
+        self.p = p
         self.c = c
         self.seq_len = seq_len
         self.n_bars = n_bars
@@ -65,8 +65,8 @@ class MCTS:
         #self.diff_distros(self.Ps[s], N)
         
         #next_token = torch.multinomial(N, num_samples=1)
-        next_token = torch.argmax(N)
-        #next_token = torch.argmax(M)
+        #next_token = torch.argmax(N)
+        next_token = torch.argmax(M)
         
         return int(next_token)
 
@@ -121,11 +121,12 @@ class MCTS:
             y_i = self.language_model(state.unsqueeze(0))[:,-1,:]
         
             # Filter out end token
-            #y_i = filter_index(y_i, END_TOKEN)
-
-            if self.k > 0:
-                y_i = filter_top_k(y_i, self.k)
-        
+            y_i = filter_index(y_i, END_TOKEN)
+            
+            # Filter top_k
+            if self.p > 0:
+                y_i = filter_top_p(y_i, p=self.p)
+       
             return torch.softmax(y_i, dim=1).squeeze()
 
     def _rollout(self, state, depth=1):
@@ -141,13 +142,13 @@ class MCTS:
                 y_i = self.language_model(roll_state)[:,-1,:]
 
                 # Filter out end token
-                #y_i = filter_index(y_i, END_TOKEN)
-
-                if self.k > 0:
-                    y_i = filter_top_k(y_i, self.k)
+                y_i = filter_index(y_i, END_TOKEN)
+                
+                # Filter top_k
+                if self.p > 0:
+                    y_i = filter_top_p(y_i, p=self.p)
 
                 token = sample_tokens(y_i)
-
                 if int(token) == BAR_TOKEN:
                     n_bars += 1
 

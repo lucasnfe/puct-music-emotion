@@ -74,7 +74,8 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
     except KeyboardInterrupt:
         print("Exiting due to keyboard interrupt.")
 
-    return [int(token) for token in piece[-1]]
+    return piece.cpu().numpy().tolist()
+    
 
 if __name__ == "__main__":
     # Parse arguments

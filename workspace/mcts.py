@@ -163,8 +163,8 @@ class MCTS:
         print("continuation", roll_state)
         
         # Discriminator score
-        #y_hat = self.discriminator(roll_state)
-        #discriminator_score = torch.sigmoid(y_hat).squeeze()
+        y_hat = self.discriminator(roll_state)
+        discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = torch.softmax(self.emotion_classifier(roll_state), dim=1).squeeze()
@@ -173,12 +173,13 @@ class MCTS:
         emotion_score = y_hat[self.emotion]
 
         if emotion_hat == self.emotion:
-            reward = emotion_score# * discriminator_score
+            #reward = emotion_score * discriminator_score
+            reward = discriminator_score
         else:
             reward = (emotion_score - 1.0)# * (1.0 - discriminator_score)
 
-        #print("reward", emotion_hat, discriminator_score, reward)
-        print("reward", emotion_hat, emotion_score, reward)
+        print("reward", emotion_hat, discriminator_score, reward)
+        #print("reward", emotion_hat, emotion_score, reward)
         return reward
 
     def _select(self, s, eps=1e-8):

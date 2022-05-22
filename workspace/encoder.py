@@ -147,7 +147,6 @@ def _get_duration_values(note_range=DEFAULT_NOTE_RANGE, dots=DEFAULT_NOTE_DOTS, 
 
     return note_types
 
-
 def decode_midi(idx_array, path_outfile=None):
     # Create mid object
     midi_obj = miditoolkit.midi.parser.MidiFile(ticks_per_beat=BEAT_RESOL)
@@ -157,6 +156,8 @@ def decode_midi(idx_array, path_outfile=None):
     cur_pos = 0
 
     tempo = 120
+    velocity = 0
+    duration = 0
 
     notes = []
     for ev in events:
@@ -199,3 +200,18 @@ def decode_midi(idx_array, path_outfile=None):
 
     return midi_obj
 
+def process_emotion(path_infile):
+    path_basename = os.path.basename(path_infile)
+    return EMOTION_MAP[path_basename.split('_')[0]]
+
+if __name__ == '__main__':
+    # Parse arguments
+    parser = argparse.ArgumentParser(description='encoder.py')
+    parser.add_argument('--piece', type=str, required=True)
+    parser.add_argument('--save_to', type=str, required=True)
+    args = parser.parse_args()
+
+    piece = [int(c) for c in args.piece.split(',')]
+
+    decode_midi(piece, args.save_to)
+    print(piece)

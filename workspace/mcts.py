@@ -57,17 +57,20 @@ class MCTS:
         s = self._get_string_representation(state)
 
         N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device, dtype=torch.float)
-        M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else float('-inf') for token in range(self.vocab_size)], device=self.device)
+        M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else 0.0 for token in range(self.vocab_size)], device=self.device)
         print(N)
+        print(self.Ps[s])
         print(M)
-        N = N**(1./temperature)
+        P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
+        #N = N**(1./temperature)
         
-        #self.diff_distros(self.Ps[s], N)
+        self.diff_distros(self.Ps[s].cpu().numpy(), P.cpu().numpy())
         
-        #next_token = torch.multinomial(N, num_samples=1)
-        next_token = torch.argmax(N)
+        #next_token = torch.argmax(P)
+        next_token = torch.multinomial(P, num_samples=1)
+        #next_token = torch.argmax(N)
         #next_token = torch.argmax(M)
-        
+
         return int(next_token)
 
     def _get_next_state(self, state, token):
@@ -164,8 +167,8 @@ class MCTS:
         print("continuation", roll_state)
         
         # Discriminator score
-        #y_hat = self.discriminator(roll_state)
-        #discriminator_score = torch.sigmoid(y_hat).squeeze()
+        y_hat = self.discriminator(roll_state)
+        discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = torch.softmax(self.emotion_classifier(roll_state), dim=1).squeeze()
@@ -173,8 +176,9 @@ class MCTS:
         emotion_hat = int(torch.argmax(y_hat))
         emotion_score = y_hat[self.emotion]
 
+        #reward = emotion_score
         if emotion_hat == self.emotion:
-            #reward = emotion_score * discriminator_score
+            #reward = discriminator_score
             #reward = discriminator_score
             reward = emotion_score
         else:

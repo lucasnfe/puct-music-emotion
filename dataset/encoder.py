@@ -64,6 +64,8 @@ N_PITCH    =  len(DEFAULT_PITCH_BINS)
 N_EMOTION  =  len(EMOTION_MAP)
 N_CONTROL  =  4 # START, STOP, BAR, PAD
 
+VOCAB_SIZE = N_BEAT + N_TEMPO + N_CHORD + N_VELOCITY + N_DURATION + N_PITCH + N_EMOTION + N_CONTROL
+
 start_idx = {
     'beat'    : 0,
     'tempo'   : N_BEAT,
@@ -369,11 +371,12 @@ def encode_midi(path_infile, path_outfile, include_emotion=False, note_sorting=1
     events = _create_events(note_grid, tempo_grid, chord_grid, last_bar, emotion)
 
     # save
-    fn = os.path.basename(path_outfile)
-    os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
+    if path_outfile:
+        fn = os.path.basename(path_outfile)
+        os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
 
-    with open(path_outfile, 'w') as f:
-        f.write(' '.join([str(e) for e in events]))
+        with open(path_outfile, 'w') as f:
+            f.write(' '.join([str(e) for e in events]))
 
     return events
 

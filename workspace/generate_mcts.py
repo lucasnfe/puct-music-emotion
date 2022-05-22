@@ -10,7 +10,7 @@ from mcts import MCTS
 from encoder import *
 from model import *
 
-def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len):
+def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len, device):
     language_model = MusicGenerator(n_tokens=vocab_size,
                             d_model=d_model,
                             seq_len=seq_len,
@@ -24,7 +24,7 @@ def load_language_model(model, vocab_size, d_model, n_layers, n_heads, seq_len):
 
     return language_model
 
-def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len, out_size):
+def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len, out_size, device):
     # Load Emotion Classifier
     emotion_classifier = MusicClassifier(n_tokens=vocab_size,
                             d_model=d_model,
@@ -111,14 +111,14 @@ if __name__ == "__main__":
     pad_token = Event(event_type='control', value=3).to_int()
 
     # Load language models
-    language_model = load_language_model(opt.lm, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len)
+    language_model = load_language_model(opt.lm, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, device=device)
     print(f'> Loaded language model {opt.lm}')
 
     # Load emotion classifier
-    emotion_classifier = load_classifier(opt.clf, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=4)
+    emotion_classifier = load_classifier(opt.clf, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=4, device=device)
     print(f'> Loaded emotion classifier {opt.clf}')
     
-    discriminator = load_classifier(opt.disc, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=1)
+    discriminator = load_classifier(opt.disc, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=1, device=device)
     print(f'> Loaded discriminator {opt.disc}')
 
     # Define prime sequence

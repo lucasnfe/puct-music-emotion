@@ -4,8 +4,8 @@ import argparse
 import torch
 import numpy as np
 
-from encoder import process_emotion
-from generate_mcts import load_classifier,
+from encoder import *
+from generate_mcts import load_classifier
 
 def traverse_dir(
         root_dir,
@@ -59,13 +59,23 @@ if __name__ == "__main__":
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
     parser.add_argument('--d_model', type=int, default=512, help="Dimension of the query matrix.")
     parser.add_argument('--n_heads', type=int, default=8, help="Number of attention heads.")
+    parser.add_argument('--device', type=str, required=False, help="Force device.")
     args = parser.parse_args()
 
+    # Disable autograd globally
+    torch.autograd.set_grad_enabled(False)
+
+    # Set up torch device
+    if args.device:
+        device = torch.device(args.device)
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # Load emotion classifier
-    emotion_classifier = load_classifier(args.clf, vocab_size, args.d_model, args.n_layers, args.n_heads, args.seq_len, out_size=4)
+    emotion_classifier = load_classifier(args.clf, VOCAB_SIZE, args.d_model, args.n_layers, args.n_heads, args.seq_len, out_size=4, device=device)
     print(f'> Loaded emotion classifier {args.clf}')
 
-    discriminator = load_classifier(args.disc, vocab_size, args.d_model, args.n_layers, args.n_heads, args.seq_len, out_size=1)
+    discriminator = load_classifier(args.disc, VOCAB_SIZE, args.d_model, args.n_layers, args.n_heads, args.seq_len, out_size=1, device=device)
     print(f'> Loaded discriminator {args.disc}')
 
     # list files
@@ -101,20 +111,21 @@ if __name__ == "__main__":
         # Emotion
         emotion_target = process_emotion(path_midi)
 
-        y_hat = torch.softmax(emotion_classifier(roll_state), dim=1).squeeze()
-        emotion_hat = int(torch.argmax(y_hat))
-
+        x = torch.tensor(encode_midi(path_infile, None)[:args.seq_len], device=device).unsqueeze(0)
+        y = torch.softmax(emotion_classifier(x), dim=1).squeeze()
+        
+        emotion_hat = int(torch.argmax(y))
         emotion_hits.append(int(emotion_hat == emotion_target))
 
         # Discriminator score
-        y_hat = discriminator(roll_state)
-        discriminator_score = torch.sigmoid(y_hat).squeeze()
+        y = discriminator(x)
+        discriminator_score = float(torch.sigmoid(y).squeeze())
         discriminator_scores.append(discriminator_score)
 
     print("Evaluation")
-    print("> PR: {}/{}".format(np.mean(pitch_range), np.std(pitch_range)))
-    print("> NPC: {}/{}".format(np.mean(n_pitches_used), np.std(n_pitches_used)))
-    print("> POLY: {}/{}".format(np.mean(polyphony), np.std(polyphony)))
+    print("> PR: {:.2f}/{:.2f}".format(np.mean(pitch_range), np.std(pitch_range)))
+    print("> NPC: {:.2f}/{:.2f}".format(np.mean(n_pitches_used), np.std(n_pitches_used)))
+    print("> POLY: {:.2f}/{:.2f}".format(np.mean(polyphony), np.std(polyphony)))
 
-    print("> Emotion: {}/{}".format(np.mean(emotion_hits)))
-    print("> Discriminator: {}/{}".format(np.mean(discriminator_scores), np.std(discriminator_scores)))
+    print("> Emotion: {}".format(np.mean(emotion_hits)))
+    print("> Discriminator: {:.2f}/{:.2f}".format(np.mean(discriminator_scores), np.std(discriminator_scores)))

@@ -33,6 +33,11 @@ EMOTION_MAP = {
     'e4' : 4
 }
 
+ORIGIN_MAP = {
+    'fake' : 0,
+    'real' : 1
+}
+
 DEGREE2PITCH = {
     0: 'C', 1: 'C#', 2: 'D', 3: 'D#', 4: 'E', 5: 'F',
     6: 'F#', 7: 'G', 8: 'G#', 9: 'A', 10: 'A#', 11: 'B'
@@ -122,6 +127,159 @@ class Event:
         valid_value -= start_idx['control']
         return {'type': 'control', 'value': valid_value}
 
+def _load_notes(midi_obj, note_sorting = 1):
+    # load notes
+    instr_notes = collections.defaultdict(list)
+
+    for instr in midi_obj.instruments:
+        # skip
+        if instr.name not in INSTRUMENT_MAP.keys():
+            continue
+
+        # process
+        instr_idx = INSTRUMENT_MAP[instr.name]
+        for note in instr.notes:
+            note.instr_idx = instr_idx
+            instr_notes[instr_idx].append(note)
+        if note_sorting == 0:
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, x.pitch))
+        elif note_sorting == 1:
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, -x.pitch))
+        else:
+            raise ValueError(' [x] Unknown type of sorting.')
+
+    return instr_notes
+
+def _load_tempo_changes(midi_obj):
+    tempi = midi_obj.tempo_changes
+    tempi.sort(key=lambda x: x.time)
+    return tempi
+
+def _load_chords(midi_obj):
+    chords = []
+    for cidx, chord in enumerate(Dechorder.dechord(midi_obj)):
+        if chord.root_pc is not None and chord.quality is not None:
+            chord_text = '{}_{}'.format(DEGREE2PITCH[chord.root_pc], chord.quality)
+            chords.append(Marker(time=int(cidx * BEAT_RESOL), text=chord_text))
+
+    return chords
+
+def _process_notes(notes, tempo_changes, offset):
+    intsr_grid = dict()
+
+    for key in notes.keys():
+        note_grid = collections.defaultdict(list)
+        for note in notes[key]:
+            note.start = note.start - offset * BAR_RESOL
+            note.end = note.end - offset * BAR_RESOL
+
+            # quantize start
+            quant_time = int(np.round(note.start / TICK_RESOL) * TICK_RESOL)
+
+            # velocity
+            note.velocity = np.argmin(abs(DEFAULT_VELOCITY_BINS - note.velocity))
+
+            # shift of start
+            note.shift = note.start - quant_time
+            note.shift = np.argmin(abs(DEFAULT_SHIFT_BINS - note.shift))
+
+            # duration
+            note_tempo = _get_note_tempo(note, tempo_changes)
+            note_duration = note.end - note.start
+            note.duration = _get_closest_note_value(note_duration, tempo=note_tempo)
+
+            # append
+            note_grid[quant_time].append(note)
+
+        # set to track
+        intsr_grid[key] = note_grid.copy()
+
+    return intsr_grid
+
+def process_emotion(path_infile):
+    path_basename = os.path.basename(path_infile)
+    return EMOTION_MAP[path_basename.split('_')[0]]
+
+def process_origin(path_infile):
+    path_basename = os.path.basename(path_infile)
+    return ORIGIN_MAP[path_basename.split('_')[1]]
+
+def _process_tempo_changes(tempo_changes, offset):
+    tempo_grid = collections.defaultdict(list)
+    for tempo in tempo_changes:
+        # quantize
+        tempo.time = tempo.time - offset * BAR_RESOL
+        tempo.time = 0 if tempo.time < 0 else tempo.time
+
+        quant_time = int(np.round(tempo.time / TICK_RESOL) * TICK_RESOL)
+        tempo.tempo = np.argmin(abs(DEFAULT_TEMPO_BINS-tempo.tempo))
+
+        # append
+        tempo_grid[quant_time].append(tempo)
+
+    return tempo_grid
+
+def _process_chords(chords, offset):
+    chord_map = _get_chord_map()
+
+    chord_grid = collections.defaultdict(list)
+    for chord in chords:
+        # quantize
+        chord.time = chord.time - offset * BAR_RESOL
+        chord.time = 0 if chord.time < 0 else chord.time
+        chord.text = chord_map[chord.text]
+        quant_time = int(np.round(chord.time / TICK_RESOL) * TICK_RESOL)
+
+        # append
+        chord_grid[quant_time].append(chord)
+
+    return chord_grid
+
+def _create_events(notes, tempo_changes, chords, last_bar, emotion=0):
+    events = []
+
+    # Start of piece event
+    events.append(Event(event_type='control', value=0))
+    events.append(Event(event_type='emotion', value=emotion))
+
+    for bar_step in range(0, last_bar * BAR_RESOL, BAR_RESOL):
+        # --- piano track --- #
+        for t in range(bar_step, bar_step + BAR_RESOL, TICK_RESOL):
+            t_tempos = tempo_changes[t]
+            t_notes  = notes[0][t]
+            t_chords = chords[t]
+
+            # Beat
+            beat_value = (t - bar_step)//TICK_RESOL
+            events.append(Event(event_type='beat', value=beat_value))
+
+            # Tempo
+            if len(t_tempos):
+                events.append(Event(event_type='tempo', value=t_tempos[-1].tempo))
+
+            # Chord
+            if len(t_chords):
+                events.append(Event(event_type='chord', value=t_chords[-1].text))
+
+            # Notes
+            for note in t_notes:
+                events.append(Event(event_type='velocity', value=note.velocity))
+                events.append(Event(event_type='duration', value=note.duration))
+                events.append(Event(event_type='pitch', value=note.pitch))
+
+        # create bar event
+        events.append(Event(event_type='control', value=1))
+
+    # End of piece event
+    events.append(Event(event_type='control', value=2))
+
+    return [ev.to_int() for ev in events]
+
+def _get_note_tempo(note, tempo_changes):
+    i = 0
+    while i < len(tempo_changes) and note.start >= tempo_changes[i].time:
+        i += 1
+    return tempo_changes[i - 1].tempo
 
 def _get_duration_values(note_range=DEFAULT_NOTE_RANGE, dots=DEFAULT_NOTE_DOTS, tempo=120):
     note_types = []
@@ -147,6 +305,80 @@ def _get_duration_values(note_range=DEFAULT_NOTE_RANGE, dots=DEFAULT_NOTE_DOTS, 
 
     return note_types
 
+def _get_chord_map():
+    chord_map = {}
+    chord_idx = 0
+
+    for degree, pitch in DEGREE2PITCH.items():
+        for quality in Chord.standard_qualities:
+            chord = '{}_{}'.format(pitch, quality)
+            chord_map[chord] = chord_idx
+            chord_idx += 1
+
+    return chord_map
+
+def _get_closest_note_value(delta_time, tempo):
+    note_types = _get_duration_values(tempo=tempo)
+
+    min_dist = math.inf
+    min_type = None
+    for i, type in enumerate(note_types):
+        dist = abs(delta_time - type)
+        if dist < min_dist:
+            min_dist = dist
+            min_type = i
+
+    return min_type
+
+def encode_midi(path_infile, path_outfile, include_emotion=False, note_sorting=1):
+    # --- load --- #
+    midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
+
+    assert midi_obj.ticks_per_beat == BEAT_RESOL
+
+    # notes and tempo changes
+    notes = _load_notes(midi_obj, note_sorting=note_sorting)
+    tempo_changes = _load_tempo_changes(midi_obj)
+    chords = _load_chords(midi_obj)
+
+    # --- process items to grid --- #
+    # compute empty bar offset at head
+    first_note_time = min([notes[k][0].start for k in notes.keys()])
+    last_note_time = max([notes[k][-1].start for k in notes.keys()])
+
+    # compute quantized time of the first note
+    quant_time_first = int(np.round(first_note_time / TICK_RESOL) * TICK_RESOL)
+
+    # compute quantized offset and last bar time
+    offset = quant_time_first // BAR_RESOL
+    last_bar = int(np.ceil(last_note_time / BAR_RESOL)) - offset
+    
+    print(path_infile)
+    print(' > offset:', offset)
+    print(' > last_bar:', last_bar)
+
+    # process quantized notes and tempo
+    note_grid = _process_notes(notes, tempo_changes, offset)
+    tempo_grid = _process_tempo_changes(tempo_changes, offset)
+    chord_grid = _process_chords(chords, offset)
+    
+    emotion = 0
+    if include_emotion:
+        emotion = process_emotion(path_infile)
+
+    # create events
+    events = _create_events(note_grid, tempo_grid, chord_grid, last_bar, emotion)
+
+    # save
+    if path_outfile:
+        fn = os.path.basename(path_outfile)
+        os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
+
+        with open(path_outfile, 'w') as f:
+            f.write(' '.join([str(e) for e in events]))
+
+    return events
+
 def decode_midi(idx_array, path_outfile=None):
     # Create mid object
     midi_obj = miditoolkit.midi.parser.MidiFile(ticks_per_beat=BEAT_RESOL)
@@ -154,10 +386,6 @@ def decode_midi(idx_array, path_outfile=None):
 
     bar_cnt = 0
     cur_pos = 0
-
-    tempo = 120
-    velocity = 0
-    duration = 0
 
     notes = []
     for ev in events:
@@ -199,10 +427,6 @@ def decode_midi(idx_array, path_outfile=None):
         midi_obj.dump(path_outfile)
 
     return midi_obj
-
-def process_emotion(path_infile):
-    path_basename = os.path.basename(path_infile)
-    return EMOTION_MAP[path_basename.split('_')[0]]
 
 if __name__ == '__main__':
     # Parse arguments

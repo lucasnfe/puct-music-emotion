@@ -16,6 +16,9 @@ from model import MusicGenerator
 
 from torch.distributions.categorical import Categorical
 
+END_TOKEN = Event(event_type='control', value=2).to_int()
+BAR_TOKEN = Event(event_type='control', value=1).to_int()
+
 def filter_top_p(y_hat, p, filter_value=-float("Inf")):
     sorted_logits, sorted_indices = torch.sort(y_hat, descending=True)
     cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
@@ -61,22 +64,26 @@ def sample_tokens(y_hat, num_samples=1):
     random_idx = torch.multinomial(probs, num_samples)
     return random_idx
 
-def generate(model, prime, n, k=0, p=0, temperature=1.0):
-    # Process prime sequence
-    prime_len = len(prime)
+def _is_terminal(state, n_bars, seq_len):
+    return torch.sum(state == BAR_TOKEN) >= n_bars or len(state) >= seq_len or state[-1] == END_TOKEN
 
+def generate(model, prime, n_bars, seq_len, k=0, p=0, temperature=1.0):
     # Generate new tokens
     generated = torch.tensor(prime).unsqueeze(dim=0).to(device)
-    for i in range(prime_len, prime_len + n):
+    
+    while not _is_terminal(generated.squeeze(), n_bars, seq_len):
         print("generated", generated)
-        y_hat = model(generated)[:,-1,:]
+        y_i = model(generated)[:,-1,:]
+
+        # Filter out end token
+        y_i = filter_index(y_i, END_TOKEN)
 
         if k > 0:
-            y_hat = filter_top_k(y_hat, k)
+            y_i = filter_top_k(y_i, k)
         if p > 0 and p < 1.0:
-            y_hat = filter_top_p(y_hat, p)
+            y_i = filter_top_p(y_i, p)
 
-        token = sample_tokens(y_hat)
+        token = sample_tokens(y_i)
         generated = torch.cat((generated, token), dim=1)
 
     return [int(token) for token in generated.squeeze(0)]
@@ -87,6 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, required=True, help="Path to load model from.")
     parser.add_argument('--emotion', type=int, default=0, help="Target emotion.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
+    parser.add_argument('--n_bars', type=int, default=4, help="Num bars to generate.")
     parser.add_argument('--k', type=int, default=0, help="Number k of elements to consider while sampling.")
     parser.add_argument('--p', type=float, default=1.0, help="Probability p to consider while sampling.")
     parser.add_argument('--t', type=float, default=1.0, help="Sampling temperature.")
@@ -132,6 +140,6 @@ if __name__ == '__main__':
     # Generate continuation
     for i in range(opt.n_samples):
         # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
-        piece = generate(model, prime, n=opt.seq_len - len(prime), k=opt.k, p=opt.p, temperature=opt.t)
+        piece = generate(model, prime, n_bars=opt.n_bars, seq_len=opt.seq_len, k=opt.k, p=opt.p, temperature=opt.t)
         decode_midi(piece, "{}_{}.mid".format(opt.save_to, i))
         print(piece)

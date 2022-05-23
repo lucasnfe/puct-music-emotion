@@ -92,10 +92,13 @@ def compile(path_indir, max_len, task='language_modeling'):
             raise ValueError('Invalid task.')
 
     pieces = np.vstack(pieces)
-    labels = np.vstack(labels)
 
-    assert pieces.shape[0] == labels.shape[0]
-    return pieces, labels
+    if task != 'language_modeling':
+        labels = np.vstack(labels)
+        assert pieces.shape[0] == labels.shape[0]
+        return pieces, labels
+    
+    return pieces
 
 if __name__ == '__main__':
     # Parse arguments
@@ -110,18 +113,35 @@ if __name__ == '__main__':
     os.makedirs(args.path_outdir, exist_ok=True)
 
     # Load datasets
-    train_pieces, train_labels = compile(args.path_train_indir, args.max_len, args.task)
-    test_pieces, test_labels = compile(args.path_test_indir, args.max_len, args.task)
+    if args.task == 'emotion_classification' or args.task == 'discriminator':
+        train_pieces, train_labels = compile(args.path_train_indir, args.max_len, args.task)
+        test_pieces, test_labels = compile(args.path_test_indir, args.max_len, args.task)
 
-    print('---')
-    print(' > train x:', train_pieces.shape)
-    print(' > train y:', train_labels.shape)
-    print(' >  test x:', test_pieces.shape)
-    print(' >  test y:', test_labels.shape)
+        print('---')
+        print(' > train x:', train_pieces.shape)
+        print(' > train y:', train_labels.shape)
+        print(' >  test x:', test_pieces.shape)
+        print(' >  test y:', test_labels.shape)
 
-    # Save datasets
-    path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
-    path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
+        # Save datasets
+        path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
+        path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
 
-    np.savez(path_train_outfile, x=train_pieces, y=train_labels)
-    np.savez(path_test_outfile, x=test_pieces, y=test_labels)
+        np.savez(path_train_outfile, x=train_pieces, y=train_labels)
+        np.savez(path_test_outfile, x=test_pieces, y=test_labels)
+    elif args.task == 'language_modeling':
+        train_pieces = compile(args.path_train_indir, args.max_len, args.task)
+        test_pieces = compile(args.path_test_indir, args.max_len, args.task)
+
+        print('---')
+        print(' > train x:', train_pieces.shape)
+        print(' >  test x:', test_pieces.shape)
+
+        # Save datasets
+        path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
+        path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
+
+        np.savez(path_train_outfile, x=train_pieces)
+        np.savez(path_test_outfile, x=test_pieces)
+    else:
+        raise ValueError('Invalid task.')

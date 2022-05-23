@@ -58,18 +58,18 @@ class MCTS:
         s = self._get_string_representation(state)
 
         N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device, dtype=torch.float)
-        #M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else 0.0 for token in range(self.vocab_size)], device=self.device)
+        M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else -float('inf') for token in range(self.vocab_size)], device=self.device)
         print(N)
-        #print(M)
+        print(M)
         #P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
         N = N**(1./temperature)
         
         self.diff_distros(self.Ps[s].cpu().numpy(), (N/N.sum()).cpu().numpy())
         
         #next_token = torch.argmax(P)
-        next_token = torch.multinomial(N/N.sum(), num_samples=1)
+        #next_token = torch.multinomial(N/N.sum(), num_samples=1)
         #next_token = torch.argmax(N)
-        #next_token = torch.argmax(M)
+        next_token = torch.argmax(M)
 
         return int(next_token)
 

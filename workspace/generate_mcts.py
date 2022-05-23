@@ -44,7 +44,7 @@ def load_classifier(model, vocab_size, d_model, n_layers, n_heads, seq_len, out_
 
     return emotion_classifier
 
-def generate(language_model, emotion_classifier, discriminator, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, p=0, c=1.0):
+def generate(language_model, emotion_classifier, discriminator, emotion, n_bars, seq_len, vocab_size, piece, roll_steps=30, p=0, c=1.0, t=1.0):
     tree = MCTS(language_model,
                 emotion_classifier,
                 discriminator,
@@ -65,7 +65,7 @@ def generate(language_model, emotion_classifier, discriminator, emotion, n_bars,
                 tree.step(piece)
 
             # Choose next state
-            token = tree.choose(piece)
+            token = tree.choose(piece, temperature=t)
             piece = tree._get_next_state(piece, token)
 
             if tree._is_terminal(piece):
@@ -87,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument('--roll_steps', type=int, default=30, help="Number rollout steps.")
     parser.add_argument('--p', type=float, default=0.0, help="Number k of elements to consider while sampling.")
     parser.add_argument('--c', type=float, default=1.0, help="Constant c for puct.")
+    parser.add_argument('--t', type=float, default=1.0, help="Sampling temperature.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--n_bars', type=int, default=4, help="Num bars to generate.")
     parser.add_argument('--n_layers', type=int, default=8, help="Number of transformer layers.")
@@ -141,7 +142,7 @@ if __name__ == "__main__":
         print(f'Number of bars: {opt.n_bars}')
         print('-' * 50)
 
-        piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, p=opt.p, c=opt.c)
+        piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, p=opt.p, c=opt.c, t=opt.t)
         decode_midi(piece, opt.save_to)
         print(piece)
 

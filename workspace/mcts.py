@@ -62,12 +62,12 @@ class MCTS:
         print(self.Ps[s])
         print(M)
         P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
-        #N = N**(1./temperature)
+        N = N**(1./temperature)
         
-        self.diff_distros(self.Ps[s].cpu().numpy(), P.cpu().numpy())
+        self.diff_distros(self.Ps[s].cpu().numpy(), (N/N.sum()).cpu().numpy())
         
         #next_token = torch.argmax(P)
-        next_token = torch.multinomial(P, num_samples=1)
+        next_token = torch.multinomial(N/N.sum(), num_samples=1)
         #next_token = torch.argmax(N)
         #next_token = torch.argmax(M)
 

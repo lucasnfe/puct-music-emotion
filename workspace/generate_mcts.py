@@ -106,20 +106,17 @@ if __name__ == "__main__":
     else:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Get pad token
-    vocab_size = VOCAB_SIZE
-
     pad_token = Event(event_type='control', value=3).to_int()
 
     # Load language models
-    language_model = load_language_model(opt.lm, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, device=device)
+    language_model = load_language_model(opt.lm, VOCAB_SIZE, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, device=device)
     print(f'> Loaded language model {opt.lm}')
 
     # Load emotion classifier
-    emotion_classifier = load_classifier(opt.clf, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=4, device=device)
+    emotion_classifier = load_classifier(opt.clf, VOCAB_SIZE, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=4, device=device)
     print(f'> Loaded emotion classifier {opt.clf}')
     
-    discriminator = load_classifier(opt.disc, vocab_size, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=1, device=device)
+    discriminator = load_classifier(opt.disc, VOCAB_SIZE, opt.d_model, opt.n_layers, opt.n_heads, opt.seq_len, out_size=1, device=device)
     print(f'> Loaded discriminator {opt.disc}')
 
     # Define prime sequence
@@ -142,7 +139,7 @@ if __name__ == "__main__":
         print(f'Number of bars: {opt.n_bars}')
         print('-' * 50)
 
-        piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, vocab_size, prime, opt.roll_steps, p=opt.p, c=opt.c, t=opt.t)
+        piece = generate(language_model, emotion_classifier, discriminator, opt.emotion, opt.n_bars, opt.seq_len, VOCAB_SIZE, prime, opt.roll_steps, p=opt.p, c=opt.c, t=opt.t)
         decode_midi(piece, opt.save_to)
         print(piece)
 

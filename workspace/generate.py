@@ -139,7 +139,6 @@ if __name__ == '__main__':
 
     # Generate continuation
     for i in range(opt.n_samples):
-        # piece = generate_beam_search(model, prime, n=1000, beam_size=8, k=opt.k, p=opt.p, temperature=opt.t)
         piece = generate(model, prime, n_bars=opt.n_bars, seq_len=opt.seq_len, k=opt.k, p=opt.p, temperature=opt.t)
         decode_midi(piece, "{}_{}.mid".format(opt.save_to, i))
         print(piece)

@@ -15,6 +15,7 @@ class MCTS:
         self.Nsa = {} # stores #times edge s,a was visited
         self.Ps  = {} # stores language model policy
         self.Ns  = {}
+        self.LMs = {}
 
         self.language_model = language_model
         self.emotion_classifier = emotion_classifier
@@ -57,11 +58,10 @@ class MCTS:
         s = self._get_string_representation(state)
 
         N = torch.tensor([self.Nsa[(s, token)] if (s, token) in self.Nsa else 0 for token in range(self.vocab_size)], device=self.device, dtype=torch.float)
-        M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else 0.0 for token in range(self.vocab_size)], device=self.device)
+        #M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else 0.0 for token in range(self.vocab_size)], device=self.device)
         print(N)
-        print(self.Ps[s])
-        print(M)
-        P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
+        #print(M)
+        #P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
         N = N**(1./temperature)
         
         self.diff_distros(self.Ps[s].cpu().numpy(), (N/N.sum()).cpu().numpy())
@@ -92,8 +92,9 @@ class MCTS:
 
         if s not in self.Ps:
             # leaf node
-            self.Ps[s] = self._expand(state)
-            self.Ns[s] = 0
+            self.Ps[s]  = self._expand(state)
+            self.Ns[s]  = 0
+            self.LMs[s] = 0
 
             v = self._reward(state)
             return v
@@ -104,6 +105,9 @@ class MCTS:
         # Recursevily call step until a leaf node is found
         next_state = self._get_next_state(state, token)
 
+        ns = self._get_string_representation(next_state)
+        self.LMs[ns] = self.LMs[s] + float(torch.log(self.Ps[s][token]))
+
         #print("\t selected:", token)
         v = self.step(next_state)
 
@@ -113,7 +117,7 @@ class MCTS:
         else:
             self.Qsa[(s, token)] = v
             self.Nsa[(s, token)] = 1
-
+       
         self.Ns[s] += 1
 
         return v
@@ -133,14 +137,16 @@ class MCTS:
             return torch.softmax(y_i, dim=1).squeeze()
 
     def _rollout(self, state, depth=1):
+        s = self._get_string_representation(state)
+        
+        lm_score = self.LMs[s] 
         if int(state[-1]) == BAR_TOKEN:
-            return state.unsqueeze(0)
+            return state.unsqueeze(0), lm_score
         
         with torch.no_grad():
             n_bars = 0
-            
             roll_state = torch.clone(state).unsqueeze(0)
-            
+           
             while n_bars < depth and not self._is_terminal(roll_state.squeeze()):
                 y_i = self.language_model(roll_state)[:,-1,:]
 
@@ -151,24 +157,29 @@ class MCTS:
                 if self.p > 0:
                     y_i = filter_top_p(y_i, p=self.p)
 
-                token = sample_tokens(y_i)
+                #token = sample_tokens(y_i)                
+                ps = torch.softmax(y_i, dim=1)
+                token = torch.multinomial(ps, num_samples=1)
+               
+                # Concatenate to current state
+                roll_state = torch.cat((roll_state, token), dim=1)
+
+                lm_score += float(torch.log(ps.squeeze()[token]))
+            
                 if int(token) == BAR_TOKEN:
                     n_bars += 1
 
-                # Concatenate to current state
-                roll_state = torch.cat((roll_state, token), dim=1)
-                
-            return roll_state
+            return roll_state, lm_score
 
     def _reward(self, state):
         "Returns the reward for a random simulation (to completion) of `node`"
         #roll_state = state.unsqueeze(0)
-        roll_state = self._rollout(state, depth=1)
-        print("continuation", roll_state)
-        
+        roll_state, lm_score = self._rollout(state, depth=1)
+        print("continuation", roll_state, lm_score)
+
         # Discriminator score
-        y_hat = self.discriminator(roll_state)
-        discriminator_score = torch.sigmoid(y_hat).squeeze()
+        #y_hat = self.discriminator(roll_state)
+        #discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = torch.softmax(self.emotion_classifier(roll_state), dim=1).squeeze()
@@ -177,12 +188,11 @@ class MCTS:
         emotion_score = y_hat[self.emotion]
 
         #reward = emotion_score
-        if emotion_hat == self.emotion:
+        #if emotion_hat == self.emotion:
             #reward = discriminator_score
-            #reward = discriminator_score
-            reward = emotion_score
-        else:
-            reward = (emotion_score - 1.0)# * (1.0 - discriminator_score)
+        reward = float(torch.log(emotion_score)) + lm_score/roll_state.shape[-1]
+        #else:
+            #reward = (emotion_score - 1.0) * (1.0 - lm_score)
 
         #print("reward", emotion_hat, discriminator_score, reward)
         print("reward", emotion_hat, emotion_score, reward)

@@ -61,15 +61,16 @@ class MCTS:
         M = torch.tensor([float(self.Qsa[(s, token)]) if (s, token) in self.Qsa else -float('inf') for token in range(self.vocab_size)], device=self.device)
         print(N)
         print(M)
+        
         #P = (N * self.Ps[s])/torch.sum(N * self.Ps[s])
         N = N**(1./temperature)
         
         self.diff_distros(self.Ps[s].cpu().numpy(), (N/N.sum()).cpu().numpy())
         
         #next_token = torch.argmax(P)
-        #next_token = torch.multinomial(N/N.sum(), num_samples=1)
+        next_token = torch.multinomial(N/N.sum(), num_samples=1)
         #next_token = torch.argmax(N)
-        next_token = torch.argmax(M)
+        #next_token = torch.argmax(M)
 
         return int(next_token)
 
@@ -178,8 +179,8 @@ class MCTS:
         print("continuation", roll_state, lm_score)
 
         # Discriminator score
-        #y_hat = self.discriminator(roll_state)
-        #discriminator_score = torch.sigmoid(y_hat).squeeze()
+        y_hat = self.discriminator(roll_state)
+        discriminator_score = torch.sigmoid(y_hat).squeeze()
 
         # Emotion score
         y_hat = torch.softmax(self.emotion_classifier(roll_state), dim=1).squeeze()
@@ -188,14 +189,15 @@ class MCTS:
         emotion_score = y_hat[self.emotion]
 
         #reward = emotion_score
-        #if emotion_hat == self.emotion:
-            #reward = discriminator_score
-        reward = float(torch.log(emotion_score)) + lm_score/roll_state.shape[-1]
-        #else:
-            #reward = (emotion_score - 1.0) * (1.0 - lm_score)
+        if emotion_hat == self.emotion:
+            #reward = emotion_score
+            reward = discriminator_score * emotion_score
+        #reward = float(torch.log(emotion_score)) + lm_score/roll_state.shape[-1]
+        else:
+            reward = (discriminator_score - 1.0) * (1.0 - emotion_score)
 
-        #print("reward", emotion_hat, discriminator_score, reward)
-        print("reward", emotion_hat, emotion_score, reward)
+        print("reward:", emotion_hat, emotion_score, discriminator_score, reward)
+        #print("reward", emotion_hat, emotion_score, reward)
         return reward
 
     def _select(self, s, eps=1e-8):

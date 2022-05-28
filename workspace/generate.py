@@ -44,9 +44,7 @@ def filter_top_k(y_hat, k, filter_value=-float("Inf")):
     return y_hat
 
 def filter_index(y_hat, index, filter_value=-float("Inf")):
-    indices_to_remove = torch.zeros_like(y_hat, dtype=int)
-    indices_to_remove = indices_to_remove.scatter_(-1, indices_to_remove.new([[index]]), 1).eq(1)
-    y_hat = y_hat.masked_fill(indices_to_remove, -float("Inf"))
+    y_hat[:,index] = filter_value
     return y_hat
 
 def filter_repetition(previous_tokens, scores, penalty=1.0001):
@@ -64,14 +62,14 @@ def sample_tokens(y_hat, num_samples=1):
     random_idx = torch.multinomial(probs, num_samples)
     return random_idx
 
-def _is_terminal(state, n_bars, seq_len):
+def is_terminal(state, n_bars, seq_len):
     return torch.sum(state == BAR_TOKEN) >= n_bars or len(state) >= seq_len or state[-1] == END_TOKEN
 
 def generate(model, prime, n_bars, seq_len, k=0, p=0, temperature=1.0):
     # Generate new tokens
     generated = torch.tensor(prime).unsqueeze(dim=0).to(device)
     
-    while not _is_terminal(generated.squeeze(), n_bars, seq_len):
+    while not is_terminal(generated.squeeze(), n_bars, seq_len):
         print("generated", generated)
         y_i = model(generated)[:,-1,:]
 
@@ -91,7 +89,7 @@ def generate(model, prime, n_bars, seq_len, k=0, p=0, temperature=1.0):
 if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser(description='generate.py')
-    parser.add_argument('--model', type=str, required=True, help="Path to load model from.")
+    parser.add_argument('--lm', type=str, required=True, help="Path to load model from.")
     parser.add_argument('--emotion', type=int, default=0, help="Target emotion.")
     parser.add_argument('--seq_len', type=int, required=True, help="Max sequence to process.")
     parser.add_argument('--n_bars', type=int, default=4, help="Num bars to generate.")
@@ -104,7 +102,6 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default=None, help="Torch device.")
     parser.add_argument('--prime', type=str, required=False, help="Prime sequence.")
     parser.add_argument('--save_to', type=str, required=True, help="Directory to save the generated samples.")
-    parser.add_argument('--n_samples', type=int, default=1, help="Number of samples to generate.")
     opt = parser.parse_args()
 
     # Set up torch device
@@ -123,7 +120,7 @@ if __name__ == '__main__':
                                      n_heads=opt.n_heads).to(device)
 
     # Load model
-    model.load_state_dict(torch.load(opt.model, map_location=device)["model_state"])
+    model.load_state_dict(torch.load(opt.lm, map_location=device)["model_state"])
     model.eval()
 
     # Define prime sequence
@@ -134,11 +131,7 @@ if __name__ == '__main__':
              Event(event_type='emotion', value=opt.emotion).to_int(),
              Event(event_type='beat', value=0).to_int()]
 
-    # Mkdir
-    os.makedirs(opt.save_to, exist_ok=True)
-
-    # Generate continuation
-    for i in range(opt.n_samples):
-        piece = generate(model, prime, n_bars=opt.n_bars, seq_len=opt.seq_len, k=opt.k, p=opt.p, temperature=opt.t)
-        decode_midi(piece, "{}_{}.mid".format(opt.save_to, i))
-        print(piece)
+    # Generate piece
+    piece = generate(model, prime, n_bars=opt.n_bars, seq_len=opt.seq_len, k=opt.k, p=opt.p, temperature=opt.t)
+    decode_midi(piece, opt.save_to)
+    print(piece)

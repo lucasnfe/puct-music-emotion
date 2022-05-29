@@ -114,7 +114,7 @@ def generate(language_model, emotion_classifier, emotion, n_bars, seq_len, vocab
 
                 b_candidates = b_seq.repeat(k, 1)
                 b_candidates_scores = b_score.repeat(k, 1)
-
+                
                 b_top_ixs = torch.reshape(b_top_ixs, (k, 1))
                 b_top_ps = torch.reshape(b_top_ps, (k, 1))
 
@@ -127,18 +127,21 @@ def generate(language_model, emotion_classifier, emotion, n_bars, seq_len, vocab
                 b_combined_scores = b_candidates_scores + torch.log(b_top_ps) + torch.log(b_emotion_scores)
 
                 beam_candidates.append(b_candidates)
-                beam_candidates_ps.append(b_top_ps)
+                beam_candidates_ps.append(b_candidates_scores + torch.log(b_top_ps))
                 beam_candidates_scores.append(b_combined_scores)
            
             beam_candidates = torch.cat(beam_candidates)
             beam_candidates_ps = torch.cat(beam_candidates_ps)
             beam_candidates_scores = torch.cat(beam_candidates_scores)
 
+            if t != 0.0:
+                beam_candidates_scores = beam_candidates_scores / t
+        
             # Sample first beam
             ps = torch.softmax(torch.reshape(beam_candidates_scores, (-1,)), dim=0)
             next_beam_ixs = torch.multinomial(ps, num_samples=b)
-
-            beam_scores = beam_scores + torch.log(beam_candidates_ps[next_beam_ixs])
+        
+            beam_scores = beam_candidates_ps[next_beam_ixs]
             beam_seqs = beam_candidates[next_beam_ixs]
             
             print(beam_scores)

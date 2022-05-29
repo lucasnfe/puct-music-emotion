@@ -330,7 +330,7 @@ def _get_closest_note_value(delta_time, tempo):
 
     return min_type
 
-def encode_midi(path_infile, path_outfile, include_emotion=False, note_sorting=1):
+def encode_midi(path_infile, path_outfile=None, include_emotion=False, note_sorting=1):
     # --- load --- #
     midi_obj = miditoolkit.midi.parser.MidiFile(path_infile)
 

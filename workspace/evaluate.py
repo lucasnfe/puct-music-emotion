@@ -87,12 +87,10 @@ if __name__ == "__main__":
     print('num files:', n_files)
 
     # Define metrics
-    pitch_range = []
-    n_pitches_used = []
-    polyphony = []
+    metrics = {}
 
     emotion_hits = []
-    discriminator_scores = []
+    discriminator_hits = []
 
     for fidx in range(n_files):
         path_midi = midifiles[fidx]
@@ -104,28 +102,38 @@ if __name__ == "__main__":
         midi = muspy.read_midi(path_infile)
 
         # Pitch related metrics
-        pitch_range.append(muspy.pitch_range(midi))
-        n_pitches_used.append(muspy.n_pitches_used(midi))
-        polyphony.append(muspy.polyphony(midi))
+        #pitch_range.append(muspy.pitch_range(midi))
+        #n_pitches_used.append(muspy.n_pitch_classes_used(midi))
+        #polyphony.append(muspy.polyphony(midi))
 
         # Emotion
-        emotion_target = process_emotion(path_midi)
+        emotion_target = process_emotion(path_midi) - 1
 
-        x = torch.tensor(encode_midi(path_infile, None)[:args.seq_len], device=device).unsqueeze(0)
+        if emotion_target not in metrics:
+            metrics[emotion_target] = {'PR': [], 'NPC': [], 'POLY': [], 'EMOTION': [], 'DISC': []}
+
+        metrics[emotion_target]['PR'].append(muspy.pitch_range(midi))
+        metrics[emotion_target]['NPC'].append(muspy.n_pitch_classes_used(midi))
+        metrics[emotion_target]['POLY'].append(muspy.polyphony(midi))
+
+        x = torch.tensor(encode_midi(path_infile)[:args.seq_len], device=device).unsqueeze(0)
         y = torch.softmax(emotion_classifier(x), dim=1).squeeze()
         
         emotion_hat = int(torch.argmax(y))
-        emotion_hits.append(int(emotion_hat == emotion_target))
+        metrics[emotion_target]['EMOTION'].append(int(emotion_hat == emotion_target))
 
         # Discriminator score
-        y = discriminator(x)
-        discriminator_score = float(torch.sigmoid(y).squeeze())
-        discriminator_scores.append(discriminator_score)
+        discriminator_hat = float(torch.round(torch.sigmoid(discriminator(x))).squeeze())
+        metrics[emotion_target]['DISC'].append(int(discriminator_hat == 1.0))
+
+    print(discriminator_hits)
 
     print("Evaluation")
-    print("> PR: {:.2f}/{:.2f}".format(np.mean(pitch_range), np.std(pitch_range)))
-    print("> NPC: {:.2f}/{:.2f}".format(np.mean(n_pitches_used), np.std(n_pitches_used)))
-    print("> POLY: {:.2f}/{:.2f}".format(np.mean(polyphony), np.std(polyphony)))
+    for emotion in metrics:
+        print('- Emotion', emotion)
+        print("> PR: {:.2f}/{:.2f}".format(np.mean(metrics[emotion]['PR']), np.std(metrics[emotion]['PR'])))
+        print("> NPC: {:.2f}/{:.2f}".format(np.mean(metrics[emotion]['NPC']), np.std(metrics[emotion]['NPC'])))
+        print("> POLY: {:.2f}/{:.2f}".format(np.mean(metrics[emotion]['POLY']), np.std(metrics[emotion]['POLY'])))
 
-    print("> Emotion: {}".format(np.mean(emotion_hits)))
-    print("> Discriminator: {:.2f}/{:.2f}".format(np.mean(discriminator_scores), np.std(discriminator_scores)))
+        print("> Emotion: {:.2f}".format(np.mean(metrics[emotion]['EMOTION'])))
+        print("> Discriminator: {:.2f}".format(np.mean(metrics[emotion]['DISC'])))

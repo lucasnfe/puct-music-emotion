@@ -58,15 +58,17 @@ def traverse_dir(
 def retrieve_study(file_list):
     study = {}
     for f in audio_files:
-        experiment_index = os.path.splitext(f)[0].split('_')[-1]
+        f_basename = os.path.splitext(os.path.basename(f))[0]
 
-        if experiment_index not in study:
-            study[experiment_index] = {'_id': experiment_index, 'pieces': []}
+        experiment_emotion = f_basename.split('_')[0]
+        experiment_system = f_basename.split('_')[1]
+        experiment_index = f_basename.split('_')[3]
 
-        system = f.split('/')[-2]
-        emotion = f.split('/')[-1].split('_')[0]
+        experiment_key = (experiment_emotion, experiment_index)
+        if experiment_key not in study:
+            study[experiment_key] = {'_id': '{}_{}'.format(experiment_emotion, experiment_index),  'emotion': experiment_emotion, 'pieces': []}
 
-        study[experiment_index]['pieces'].append(f)
+        study[experiment_key]['pieces'].append(f)
 
     for experiment in study:
         for i, piece in enumerate(study[experiment]['pieces']):

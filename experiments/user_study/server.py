@@ -11,7 +11,7 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 
 # Define host name
-sever_name="192.168.1.67:4999"
+sever_name="172.31.81.219:4999"
 
 # Connect with database
 database_url = "localhost:27017"
@@ -35,7 +35,6 @@ def index():
     min_count = float('inf')
     for e in experiments:
         count = results_col.count_documents({'experiment_id': e['_id']})
-        print('experiment ' + e['_id'], "count", count)
         if count < min_count:
             min_id = e['_id']
             min_count = count
@@ -44,13 +43,11 @@ def index():
 
     pieces = []
     for key in min_experiment:
-        if key != '_id' and key != 'count':
+        if key != '_id' and key != 'emotion':
             pieces.append(key)
 
     # Randomize pieces order
     random.shuffle(pieces)
-
-    print(pieces)
 
     return render_template('index.html', experiment=min_experiment,
                                          order=pieces,
@@ -58,6 +55,8 @@ def index():
 
 @app.route('/evaluate/<experiment_id>/<piece>')
 def evaluate(experiment_id, piece):
+    print(experiment_id)
+    print(piece)
     experiment = experiments_col.find_one({"_id": experiment_id})
     return render_template('evaluate.html', piece=experiment[piece],
                                       sever_name=sever_name)
@@ -76,7 +75,7 @@ def end():
 
             result["experiment_id"] = experiment_id
             for key in experiment:
-                if key != '_id':
+                if key != '_id' and key != 'emotion':
                     result[key + "_q1"] = request.form.get(key + "_q1")
                     result[key + "_q2"] = request.form.get(key + "_q2")
                     result[key + "_q3"] = request.form.get(key + "_q3")

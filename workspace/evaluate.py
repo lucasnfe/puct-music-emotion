@@ -89,9 +89,6 @@ if __name__ == "__main__":
     # Define metrics
     metrics = {}
 
-    emotion_hits = []
-    discriminator_hits = []
-
     for fidx in range(n_files):
         path_midi = midifiles[fidx]
         path_infile = os.path.join(args.path_indir, path_midi)
@@ -116,19 +113,25 @@ if __name__ == "__main__":
         metrics[emotion_target]['NPC'].append(muspy.n_pitch_classes_used(midi))
         metrics[emotion_target]['POLY'].append(muspy.polyphony(midi))
 
-        x = torch.tensor(encode_midi(path_infile)[:args.seq_len], device=device).unsqueeze(0)
+        x = torch.tensor(encode_midi(path_infile)[:-1], device=device).unsqueeze(0)
         y = torch.softmax(emotion_classifier(x), dim=1).squeeze()
-        
+       
         emotion_hat = int(torch.argmax(y))
         metrics[emotion_target]['EMOTION'].append(int(emotion_hat == emotion_target))
-
+    
         # Discriminator score
-        discriminator_hat = float(torch.round(torch.sigmoid(discriminator(x))).squeeze())
-        metrics[emotion_target]['DISC'].append(int(discriminator_hat == 1.0))
-
-    print(discriminator_hits)
+        discriminator_hat = torch.round(torch.sigmoid(discriminator(x))).squeeze()
+        metrics[emotion_target]['DISC'].append(int(discriminator_hat == 1))
 
     print("Evaluation")
+    print("-" * 89)
+    
+    metric_pr = []
+    metric_npc = []
+    metric_poly = []
+    metric_emotion = []
+    metric_discriminator = []
+    
     for emotion in metrics:
         print('- Emotion', emotion)
         print("> PR: {:.2f}/{:.2f}".format(np.mean(metrics[emotion]['PR']), np.std(metrics[emotion]['PR'])))
@@ -137,3 +140,17 @@ if __name__ == "__main__":
 
         print("> Emotion: {:.2f}".format(np.mean(metrics[emotion]['EMOTION'])))
         print("> Discriminator: {:.2f}".format(np.mean(metrics[emotion]['DISC'])))
+
+        metric_pr += metrics[emotion]['PR']
+        metric_npc += metrics[emotion]['NPC']
+        metric_poly += metrics[emotion]['POLY']
+        metric_emotion += metrics[emotion]['EMOTION']
+        metric_discriminator += metrics[emotion]['DISC']
+
+    print("-" * 89)
+    print("> PR: {:.2f}/{:.2f}".format(np.mean(metric_pr), np.std(metric_pr)))
+    print("> NPC: {:.2f}/{:.2f}".format(np.mean(metric_npc), np.std(metric_npc)))
+    print("> POLY: {:.2f}/{:.2f}".format(np.mean(metric_poly), np.std(metric_poly)))
+    print("> EMOTION: {:.2f}/{:.2f}".format(np.mean(metric_emotion), np.std(metric_emotion)))
+    print("> DISCRIMINATOR: {:.2f}/{:.2f}".format(np.mean(metric_discriminator), np.std(metric_discriminator)))
+

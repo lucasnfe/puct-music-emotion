@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Local CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+    <!-- Load external libs -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <title>MCTS</title>
+  </head>
+
+  <body onload="main()">
+      <div class="p-1"></div>
+
+      <div class="card bg-white text-dark border rounded">
+          <div class="card-header border-0 bg-primary"></div>
+
+          <div class="card-body mx-2">
+            <div id="header">
+              <img src="static/imgs/uofa-logo.png" class="img-fluid" alt="Responsive image" width="30%">
+              <h2 class="font-weight-normal">Controlling Perceived Emotions in Computer-Generated Music</h2>
+              <br>
+            </div>
+
+              <!-- <small>Welcome to the Video Game Music Generation Experiment! -->
+              <!-- <br> -->
+              <!-- <p class="m-0 p-0 bold"><strong>PLEASE READ THE FOLLOWING INFORMATION CAREFULLY BEFORE PROCEEDING.</strong></p> -->
+
+              <div class="container">
+                <div class="row">
+                  <div class="col-sm">
+                    <p class="m-0 p-0 bold"><strong>Principal Investigator:</strong><br>
+                    Prof. Levi Lelis<br>
+                    Assistant Professor<br>
+                    Department of Computing Science<br>
+                    University of Alberta<br>
+                    Edmonton, AB<br>
+                    levi.lelis@ualberta.ca
+                    </p><br>
+                  </div>
+                  <div class="col-sm">
+                    <p class="m-0 p-0 bold"><strong>Co-Investigator:</strong><br>
+                    Dr. Lucas N. Ferreira<br>
+                    Postdoctoral Fellow<br>
+                    Department of Computing Science<br>
+                    University of Alberta<br>
+                    Edmonton, AB<br>
+                    lnferrei@ualberta.ca
+                    </p><br>
+                  </div>
+                </div>
+              </div>
+
+              <p class="m-0 p-0 bold"><strong>Invitation to Participate:</strong><br>
+              You are invited to participate in this research study about music generation with Artificial Intelligence because you are registered on Amazon Mechanical Turk.<br>
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Purpose of the Study:</strong><br>
+              From this research, we wish to learn if our system for music generation can compose video game music with a given target emotion. We also want to measure the quality of the generated pieces with respect to video game music composed by professional musicians.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Participation:</strong><br>
+              In this experiment, you will be asked to listen to 16 video game music pieces and evaluate the emotion and quality you perceive in each one of them. Each evaluation is approximately 45 seconds long. The entire experiment takes approximately 15 minutes.
+              We strongly recommend the use of headphones during this study.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Benefits:</strong><br>
+              There is no direct benefit to the participants taking part in the study.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Risks:</strong><br>
+              The risks associated with this study are equivalent to those of listening to music on a computer.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Confidentiality and Anonymity:</strong><br>
+              The information that you will share will remain strictly confidential and will be used solely for the purposes of this research. The only people who will have access to the research data are the professor and students involved in this research (see names and contact information at the top). Your answers to open-ended questions may be used verbatim in presentations and publications, but neither you (nor your organization) will be identified. In order to minimize the risk of security breaches and to help ensure your confidentiality, we recommend that you use standard safety measures such as signing out of your account, closing your browser and locking your screen or device when you are no longer using them / when you have completed the study. Results will be published in pooled (aggregate) format. Anonymity is guaranteed since you are not being asked to provide your name or any personal information.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Data Storage:</strong><br>
+              Electronic copies of the survey will be encrypted and stored on a password-protected computer in the Department of Computing Science at the University of Alberta.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Compensation:</strong><br>
+              There will be a compensation of USD $1.5 for your participation in this study, which will be paid via your Amazon Mechanical Turk account.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Voluntary Participation:</strong><br>
+              You are under no obligation to participate, and if you choose to participate, you may refuse to answer questions that you do not want to answer. Should you choose to withdraw midway through the electronic survey, simply close the link, and no responses will be included.  Given the anonymous nature of the survey, once you have submitted your responses it will no longer be possible to withdraw them from the study.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Information about the Study Results:</strong><br>
+              The results of our experiments will not be available to the participants.
+              </p><br>
+
+              <p class="m-0 p-0 bold"><strong>Contact Information:</strong><br>
+              If you have any questions or require more information about the study itself, you may contact the researcher at the numbers mentioned herein.
+              </p><br>
+
+              <p>
+              The plan for this study has been reviewed by a Research Ethics Board at the University of Alberta.  If you have any questions regarding your rights as a research participant or how the research is being conducted you may contact the Research Ethics Office at 780-492-2615.<br><br>
+              UofA Ethics ID: Pro00118418<br>
+              Version Date: 07 March 2022
+              </p>
+
+              <p class="m-0 p-0 bold"><strong>Completion and submission of the survey means your consent to participate.</strong></p>
+              </small>
+          </div>
+        </div>
+
+        <form id="submitForm" action="" method="GET">
+            <div class="row align-items-center mt-2 mb-2">
+              <div class="col-4">
+                  <!-- <button id="prevButton" type="button" class="btn-page btn border rounded bg-white" onclick="prevPage()">Back</button> -->
+                  <button id="nextButton" type="submit" class="btn-page btn border bg-white rounded">Next</button>
+              </div>
+
+              <div class="col">
+                  <div class="row align-items-center justify-content-end">
+                      <div class="col">
+                          <div id="ppage-back" class="progress bg-secondary" style="height: 10px;">
+                            <div id="ppage" class="progress-bar" role="progressbar"></div>
+                          </div>
+                     </div>
+
+                     <div class="col-6">
+                        <label id="npage">Page 1 of N</label>
+                      </div>
+                  </div>
+              </div>
+            </div>
+        </form>
+
+        <div class="p-4"></div>
+  </body>
+
+  <script>
+      function main() {
+          let experiment = localStorage.getItem("experiment");
+          let order = localStorage.getItem("order");
+
+          if (!experiment || !order) {
+            // Make sure localStorage is clear when the experiment starts
+            localStorage.clear();
+
+            // Load random sequence of pieces
+            experiment = JSON.parse('{{experiment | tojson}}')._id;
+            order = JSON.parse('{{order | tojson}}');
+          }
+          else {
+            order = order.split(',')
+          }
+
+          console.log(experiment);
+          console.log(order);
+
+          // Compute paging
+          let npage = document.getElementById("npage");
+          npage.innerHTML = npage.innerHTML.replace("N", order.length + 2);
+
+          let ppage = document.getElementById("ppage");
+          ppage.style.width = (1/(order.length + 2) * 100) + "%";
+
+          let submitForm = document.getElementById('submitForm');
+          submitForm.action = 'http://{{ sever_name }}/evaluate/' + experiment + '/' + order[0];
+
+          // Init next_piece variable
+          localStorage.setItem("piece_index", 0);
+          localStorage.setItem("experiment", experiment);
+          localStorage.setItem("order", order);
+      }
+  </script>
+</html>

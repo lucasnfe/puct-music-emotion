@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Local CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+    <!-- Load external libs -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <title>MCTS</title>
+  </head>
+
+  <body onload="main()">
+
+  <div class="p-1"></div>
+
+  <div class="card bg-white text-dark border rounded">
+      <div class="card-header border-0 bg-primary"></div>
+
+      <div class="card-body mx-2">
+        <div id="header">
+          <img src="http://{{ sever_name }}/static/imgs/uofa-logo.png" class="img-fluid" alt="Responsive image" width="30%">
+          <h2 class="font-weight-normal">Controlling Perceived Emotions in Computer-Generated Music</h2>
+        </div>
+
+          <small>
+          <p>Thank you for taking part in our experiment! Your response has been recorded. Please enter <mark id="evaluation_id"></mark> as your completion code in MTurk.<br><br>
+            UofA Ethics ID: Pro00118418<br>
+            Version Date: 07 March 2022
+          </p>
+          </small>
+      </div>
+    </div>
+
+    <div class="p-4"></div>
+  </body>
+
+  <script>
+    function main() {
+        // Check if study has already been taken
+        let evaluationId = localStorage.getItem("evaluation_id");
+
+        if (!evaluationId) {
+            if (location.search) {
+                evaluationId = location.search.split('?')[1].split('&')[0].split('evaluation_id=')[1]
+                document.getElementById("evaluation_id").innerHTML = evaluationId;
+
+                // Experiment is complete, erase saved information
+                localStorage.clear();
+                localStorage.setItem("evaluation_id", evaluationId);
+            }
+        }
+        else {
+          document.getElementById("evaluation_id").innerHTML = evaluationId;
+
+          // Experiment is complete, erase saved information
+          localStorage.clear();
+          localStorage.setItem("evaluation_id", evaluationId);
+        }
+    }
+  </script>
+</html>

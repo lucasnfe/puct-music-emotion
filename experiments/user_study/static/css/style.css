@@ -1,0 +1,48 @@
+/* For mobile phones: */
+body {
+    width: 92%;
+    margin: auto;
+    background: #ECEEF8;
+}
+
+.likert-option {
+  width: 75px;
+}
+
+/* For desktop: */
+@media only screen and (min-width: 700px) {
+    body {
+        width: 800px;
+        margin: auto;
+        background: #ECEEF8;
+    }
+
+    #header img {
+      padding-top: 20px;
+      padding-bottom: 20px;
+    }
+
+    #header h2 {
+      font-size: 25px;
+      /* padding-bottom: 20px; */
+    }
+}
+
+.card-header{
+    background: #4154B3 !important;
+}
+
+.btn-page {
+    /* background: white !important; */
+    color: #4154B3 !important;
+    width: 80px;
+    font-size: 14px;
+}
+
+.progress-bar {
+    background: #4154B3 !important;
+}
+
+.required {
+    color: red;
+}

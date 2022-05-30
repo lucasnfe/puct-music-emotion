@@ -1,0 +1,17 @@
+
+.hidden-text {
+    visibility: hidden;
+}
+
+.highlighted-text {
+    visibility: visible;
+    animation: blinker 2s linear infinite;
+}
+
+.showed-text {
+    visibility: visible;
+}
+
+@keyframes blinker {
+  50% { opacity: 0; }
+}

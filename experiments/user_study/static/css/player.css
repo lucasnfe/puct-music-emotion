@@ -1,0 +1,100 @@
+.emotion-track {
+  height: 10px;
+  float: left;
+  width: 50%;
+}
+
+.op {
+    font-size: 12px;
+    background: #FFFFFF !important;
+    color: black !important;
+}
+
+.op:hover {
+    background: #FFFFFF !important;
+}
+
+.op-emotion {
+    background: #CCCCCC !important;
+}
+
+.op-calm {
+    background: #92C1E9 !important;
+}
+
+.op-tense {
+    background: #FF8C00 !important;
+}
+
+.op-happy {
+    background: #F3DD6D !important;
+}
+
+.op-sad {
+    background: #C3B1A4 !important;
+}
+
+#playButton {
+    width: 30px;
+    height: 30px;
+    /* border-radius: 50%; */
+    border-color: #CCCCCC;
+}
+
+#emotion-trans-timer {
+    position: absolute;
+    margin-top: -35px;
+    visibility: hidden;
+}
+
+#playButtonImg {
+    display: none;
+}
+
+#emotion-slider {
+    width: 100%;
+    /* padding-left: 15px; */
+}
+
+#emotion-slider-thumb {
+  cursor: pointer;
+  background: #343a40;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  position: absolute;
+  margin-top: -5px;
+  visibility: hidden;
+  z-index: 2;
+}
+
+#emotion-trans-slider-thumb {
+  cursor: pointer;
+  background: #343a40;
+  width: 5px;
+  height: 30px;
+  border-radius: 5px;
+  position: absolute;
+  visibility: hidden;
+  margin-top: -15px;
+  z-index: 1;
+}
+
+#emotion-track-left {
+  position: relative;
+  background: #616A71;
+  border-top-left-radius: 25px;
+  border-bottom-left-radius: 25px;
+  text-align: left;
+  width: 0%;
+  z-index: 0;
+}
+
+#emotion-track-right {
+  position: relative;
+  background: #cccccc;
+  border-top-right-radius: 25px;
+  border-bottom-right-radius: 25px;
+  width: 100%;
+  z-index: 0;
+}

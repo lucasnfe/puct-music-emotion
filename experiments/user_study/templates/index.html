@@ -145,20 +145,12 @@
 
   <script>
       function main() {
-          let experiment = localStorage.getItem("experiment");
-          let order = localStorage.getItem("order");
+          // Make sure localStorage is clear when the experiment starts
+          localStorage.clear();
 
-          if (!experiment || !order) {
-            // Make sure localStorage is clear when the experiment starts
-            localStorage.clear();
-
-            // Load random sequence of pieces
-            experiment = JSON.parse('{{experiment | tojson}}')._id;
-            order = JSON.parse('{{order | tojson}}');
-          }
-          else {
-            order = order.split(',')
-          }
+          // Load random sequence of pieces
+          experiment = JSON.parse('{{experiment | tojson}}')._id;
+          order = JSON.parse('{{order | tojson}}');
 
           console.log(experiment);
           console.log(order);

@@ -11,7 +11,7 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 
 # Define host name
-sever_name="172.31.81.219:4999"
+sever_name="haai.cs.ualberta.ca:5000"
 
 # Connect with database
 database_url = "localhost:27017"
@@ -22,6 +22,13 @@ results_col = database["user_study"]["results"]
 
 app = Flask(__name__)
 
+def get_min_experiments(experiment_counts):
+    min_key = min(experiment_counts, key=experiment_counts.get)
+    min_count = experiment_counts[min_key]
+    
+    min_experiment_ids = [experiment_id for experiment_id,count in experiment_counts.items() if min_count == count]
+    return min_experiment_ids
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
@@ -31,13 +38,13 @@ def index():
     experiments = experiments_col.find({})
     experiments_to_evaluate = []
 
-    min_id = None
-    min_count = float('inf')
+    experiment_counts = {}
     for e in experiments:
-        count = results_col.count_documents({'experiment_id': e['_id']})
-        if count < min_count:
-            min_id = e['_id']
-            min_count = count
+        experiment_counts[e['_id']] = results_col.count_documents({'experiment_id': e['_id']})
+
+    # Get random min expertiment
+    min_experiment_ids = get_min_experiments(experiment_counts)
+    min_id = random.choice(min_experiment_ids)
 
     min_experiment = experiments_col.find_one({"_id": min_id})
 

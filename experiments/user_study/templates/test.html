@@ -32,6 +32,10 @@
             <div id="header">
               <img src="http://{{ sever_name }}/static/imgs/uofa-logo.png" class="img-fluid" alt="uofa logo" width="30%">
               <h2 class="font-weight-normal">Controlling Perceived Emotions in Computer-Generated Music</h2>
+              <p>
+              This is a test for you to learn how to evaluate the video game music pieces.
+              </p>
+
               <sup class="required">* Required</sup>
             </div>
           </div>
@@ -42,14 +46,14 @@
           <div class="card bg-white borderrounded">
               <div class="card-body mx-2">
               <small>
-                <label for=""><h6 id="piece-name">Listen to the video game music piece _i_: <sup class="required">*</sup></h6>
+                <label for=""><h6 id="piece-name">Listen to the following video game music piece: <sup class="required">*</sup></h6>
                 </label>
 
                 <div class="container">
                     <div class="row justify-content-center">
                             <audio id="pieceAudio" preload="true">
                               <source src="http://{{ sever_name }}/{{ piece }}" type="audio/mpeg">
-                            Your browser does not support the audio element.
+                                Your browser does not support the audio element.
                             </audio>
 
                             <div id="audioplayer">
@@ -115,7 +119,7 @@
                             </div>
                           </div>
 
-                          <div class="p-2"></div>
+                          <div class="p-4"></div>
 
                           <label for="question2"><h6>2. Is this piece mild or intense? <sup class="required">*</sup></h6></label>
 
@@ -145,11 +149,6 @@
                               <label class="form-check-label">Very Intense</label>
                             </div>
                           </div>
-
-                          <div class="p-2"></div>
-
-                          <label for="explanation"><h6>Briefly explain your answers based on the emotions in the figure: <sup class="required">*</sup></h6></label>
-                          <input id="explanationInput" name="explanation" class="form-control form-control-sm" type="text" placeholder="">
                         </div>
                       </div>
                   </small>
@@ -210,7 +209,6 @@
                             <input class="form-check-input" type="radio" name="question3" value="5" />
                             <label class="form-check-label">Strongly Agree</label>
                           </div>
-
                         </div>
                       </div>
                   </small>
@@ -334,149 +332,39 @@
 
   <script>
   function main() {
-      // Check if study has already been taken
-      let evaluationId = localStorage.getItem("evaluation_id");
-      console.log("evaluationId", evaluationId);
-
-      if (evaluationId) {
-        window.location.href = "http://{{ sever_name }}/end";
-        return;
-      }
-
       // Retrieve experiment data
       let experiment = localStorage.getItem("experiment");
       let order = localStorage.getItem("order").split(',');
-
-      // Retrieve current piece index
-      let pieceIndex = parseInt(localStorage.getItem("piece_index"));
-      console.log(pieceIndex, order.length);
-
-      let question1Answer = localStorage.getItem(order[pieceIndex] + "_q1");
-      let question2Answer = localStorage.getItem(order[pieceIndex] + "_q2");
-      let question3Answer = localStorage.getItem(order[pieceIndex] + "_q3");
-      let question4Answer = localStorage.getItem(order[pieceIndex] + "_q4");
-      let question5Answer = localStorage.getItem(order[pieceIndex] + "_q5");
-      let explanationAnswer = localStorage.getItem(order[pieceIndex] + "_expl");
-
-      console.log(question1Answer, question2Answer, question3Answer, question4Answer, question5Answer, explanationAnswer);
-
-      if (question1Answer) {
-          document.getElementById("question1").hidden = false;
-          // document.getElementById("question2").hidden = false;
-          document.forms["evaluate-form"]["question1"].value = parseInt(question1Answer);
-          pieceEnded = true;
-      }
-
-      if (question2Answer) {
-          // document.getElementById("question2").hidden = false;
-          document.getElementById("question3").hidden = false;
-          document.forms["evaluate-form"]["question2"].value = parseInt(question2Answer);
-          pieceEnded = true;
-      }
-
-      if (question3Answer) {
-          document.getElementById("question3").hidden = false;
-          document.getElementById("question4").hidden = false;
-          document.forms["evaluate-form"]["question3"].value = parseInt(question3Answer);
-          pieceEnded = true;
-      }
-
-      if (explanationAnswer) {
-        document.forms["evaluate-form"]["explanation"].value = explanationAnswer;
-        pieceEnded = true;
-      }
-
-      if (question4Answer) {
-          document.getElementById("question4").hidden = false;
-          document.getElementById("question5").hidden = false;
-          document.forms["evaluate-form"]["question4"].value = parseInt(question4Answer);
-          pieceEnded = true;
-      }
-
-      if (question5Answer) {
-          document.getElementById("question5").hidden = false;
-          document.forms["evaluate-form"]["question5"].value = parseInt(question5Answer);
-          pieceEnded = true;
-      }
-
+      let testIndex = parseInt(localStorage.getItem("test_index"));
 
       // Compute paging
       let npage = document.getElementById("npage");
-      npage.innerHTML = npage.innerHTML.replace("I", pieceIndex + 4);
+      npage.innerHTML = npage.innerHTML.replace("I", testIndex + 1);
       npage.innerHTML = npage.innerHTML.replace("N", order.length + 4);
 
       let ppage = document.getElementById("ppage");
-      ppage.style.width = ((pieceIndex + 2)/(order.length + 2) * 100) + "%";
-
-      // Define piece name
-      let pieceName = document.getElementById("piece-name");
-      pieceName.innerHTML = pieceName.innerHTML.replace("_i_", pieceIndex + 1);
-
-      // Define button actions
-      let prevButton = document.getElementById('prevButton');
-
-      if (pieceIndex == 0) {
-        prevButton.onclick = function() {
-          saveForm();
-          localStorage.setItem("test_index", 2);
-          window.location.href = 'http://{{ sever_name }}/test/2'
-        }
-      }
-      else {
-        prevButton.onclick = function() {
-          saveForm();
-          localStorage.setItem("piece_index", pieceIndex - 1);
-          window.location.href = 'http://{{ sever_name }}/evaluate/' + experiment + '/' + order[pieceIndex - 1];
-        }
-      }
-
-      // Define form actions
-      let evaluateForm = document.getElementById('evaluate-form');
-
-      if (pieceIndex < order.length - 1) {
-        evaluateForm.action = 'http://{{ sever_name }}/evaluate/' + experiment + '/' + order[pieceIndex + 1];
-      }
-      else {
-        evaluateForm.action = 'http://{{ sever_name }}/profile'
-      }
+      ppage.style.width = (2/(order.length + 2) * 100) + "%";
 
       let pieceAudio = document.getElementById("pieceAudio");
-
       let question1Input = document.getElementById("question1-input");
       let question2Input = document.getElementById("question2-input");
       let question3Input = document.getElementById("question3-input");
       let question4Input = document.getElementById("question4-input");
       let question5Input = document.getElementById("question5-input");
-      let explanationInput = document.getElementById("explanationInput");
-
-      pieceAudio.onended = function() {
-        pieceEnded = true;
-        document.getElementById("question1").hidden = false;
-      };
 
       question1Input.onclick = function() {
         if (document.forms["evaluate-form"]["question1"].value &&
-            document.forms["evaluate-form"]["question2"].value &&
-            document.forms["evaluate-form"]["explanation"].value) {
+            document.forms["evaluate-form"]["question2"].value) {
             document.getElementById("question3").hidden = false;
         }
       }
 
       question2Input.onclick = function() {
         if (document.forms["evaluate-form"]["question1"].value &&
-            document.forms["evaluate-form"]["question2"].value &&
-            document.forms["evaluate-form"]["explanation"].value) {
+            document.forms["evaluate-form"]["question2"].value) {
             document.getElementById("question3").hidden = false;
         }
       }
-
-      explanationInput.addEventListener('input', function() {
-        if (document.forms["evaluate-form"]["question1"].value &&
-            document.forms["evaluate-form"]["question2"].value &&
-            document.forms["evaluate-form"]["explanation"].value) {
-            document.getElementById("question3").hidden = false;
-        }
-      });
 
       question3Input.onclick = function() {
         if (document.forms["evaluate-form"]["question3"].value) {
@@ -489,46 +377,59 @@
             document.getElementById("question5").hidden = false;
         }
       }
+
+      // Define button actions
+      let prevButton = document.getElementById('prevButton');
+
+      if (testIndex == 1) {
+        prevButton.onclick = function() {
+          saveForm();
+          window.location.href = 'http://{{ sever_name }}'
+        }
+      }
+      else if (testIndex == 2) {
+        prevButton.onclick = function() {
+          saveForm();
+          localStorage.setItem("test_index", 1);
+          window.location.href = 'http://{{ sever_name }}/test/1';
+        }
+      }
   }
 
   function saveForm() {
-    let order = localStorage.getItem("order").split(',');
-    let pieceIndex = parseInt(localStorage.getItem("piece_index"));
+    let testIndex = parseInt(localStorage.getItem("test_index"));
 
     let question1Answer = document.forms["evaluate-form"]["question1"].value;
     let question2Answer = document.forms["evaluate-form"]["question2"].value;
     let question3Answer = document.forms["evaluate-form"]["question3"].value;
     let question4Answer = document.forms["evaluate-form"]["question4"].value;
     let question5Answer = document.forms["evaluate-form"]["question5"].value;
-    let explanationAnswer = document.forms["evaluate-form"]["explanation"].value;
 
     if (question1Answer) {
-        localStorage.setItem(order[pieceIndex] + "_q1", question1Answer);
+        localStorage.setItem("test_" + testIndex + "_q1", question1Answer);
     }
 
     if (question2Answer) {
-        localStorage.setItem(order[pieceIndex] + "_q2", question2Answer);
+        localStorage.setItem("test_" + testIndex + "_q2", question2Answer);
     }
 
     if (question3Answer) {
-        localStorage.setItem(order[pieceIndex] + "_q3", question3Answer);
+        localStorage.setItem("test_" + testIndex + "_q3", question3Answer);
     }
 
     if (question4Answer) {
-        localStorage.setItem(order[pieceIndex] + "_q4", question4Answer);
+        localStorage.setItem("test_" + testIndex + "_q4", question4Answer);
     }
 
     if (question5Answer) {
-        localStorage.setItem(order[pieceIndex] + "_q5", question5Answer);
-    }
-
-    if (explanationAnswer) {
-      localStorage.setItem(order[pieceIndex] + "_expl", explanationAnswer);
+        localStorage.setItem("test_" + testIndex + "_q5", question5Answer);
     }
   }
 
   function validateForm() {
-      let pieceIndex = parseInt(localStorage.getItem("piece_index"));
+      let experiment = localStorage.getItem("experiment");
+      let order = localStorage.getItem("order").split(',');
+      let testIndex = parseInt(localStorage.getItem("test_index"));
 
       if (!pieceEnded) {
           alert("Please listen to the piece until the end.");
@@ -540,16 +441,53 @@
       let question3Answer = document.forms["evaluate-form"]["question3"].value;
       let question4Answer = document.forms["evaluate-form"]["question4"].value;
       let question5Answer = document.forms["evaluate-form"]["question5"].value;
-      let explanationAnswer = document.forms["evaluate-form"]["explanation"].value;
 
-      if (!question1Answer || !question2Answer || !question3Answer || !question4Answer || !question5Answer || !explanationAnswer) {
+      if (!question1Answer || !question2Answer || !question3Answer || !question4Answer || !question5Answer) {
         alert("Please answer all the questions.");
+        return false;
+      }
+
+      let correctAnswerQ1 = parseInt("{{ q1 }}");
+      let correctAnswerQ2 = parseInt("{{ q2 }}");
+      let correctAnswerQ3 = parseInt("{{ q3 }}");
+
+      if (correctAnswerQ1 < 3 && question1Answer >= 3) {
+        alert("This is a negative piece. Please select a negative option for Question 1.");
+        return false;
+      }
+      else if (correctAnswerQ1 > 3 && question1Answer <= 3) {
+        alert("This is a positive piece. Please select a positive option for Question 1.");
+        return false;
+      }
+
+      if (correctAnswerQ2 > 3 && question2Answer <= 3) {
+        alert("This is an intense piece. Please select an intense option for Question 2.");
+        return false;
+      }
+      else if (correctAnswerQ2 < 3 && question2Answer >= 3) {
+        alert("This is a mild piece. Please select a mild option for Question 2.");
+        return false;
+      }
+
+      if (question3Answer <= 3) {
+        alert("This is a piece composed by a human. Please select Agree or Strongly Agree for Question 3.");
         return false;
       }
 
       saveForm();
 
-      localStorage.setItem("piece_index", pieceIndex + 1);
+      // Define form actions
+      let evaluateForm = document.getElementById('evaluate-form');
+
+      if (testIndex == 1) {
+        localStorage.setItem("test_index", 2);
+        evaluateForm.action = 'http://{{ sever_name }}/test/2';
+      }
+      else {
+        localStorage.setItem("piece_index", 0);
+        evaluateForm.action = 'http://{{ sever_name }}/evaluate/' + experiment + '/' + order[0];
+      }
+
       return true;
   }
 
@@ -567,7 +505,6 @@
        }
   }
 
-
   // play button event listenter
   pButton.addEventListener("click", play);
 
@@ -575,9 +512,9 @@
     pieceEnded = true;
     document.getElementById("question1").hidden = false;
 
-    pButtonImg.src = "http://{{ sever_name }}/static/imgs/play-64x64.png";
+    pButtonImg.src = "http://{{ sever_name }}/static/imgs/play-64x64.png"
     playhead.style.backgroundColor = "black";
   };
-  </script>
 
+  </script>
 </html>

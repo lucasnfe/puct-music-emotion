@@ -70,7 +70,7 @@
               </p><br>
 
               <p class="m-0 p-0 bold"><strong>Participation:</strong><br>
-              In this experiment, you will be asked to listen to 4 video game music pieces and evaluate the emotion and quality you perceive in each one of them. Each evaluation is approximately 45 seconds long. The entire experiment takes approximately 5 minutes.
+              In this experiment, you will be asked to listen to 5 video game music pieces and evaluate the emotion and quality you perceive in each one of them. Each evaluation is approximately 45 seconds long. The entire experiment takes approximately 5 minutes.
               We strongly recommend the use of headphones during this study.
               </p><br>
 
@@ -117,7 +117,7 @@
           </div>
         </div>
 
-        <form id="submitForm" action="" method="GET">
+        <form id="submitForm" action="http://{{ sever_name }}/test/1" method="GET">
             <div class="row align-items-center mt-2 mb-2">
               <div class="col-4">
                   <!-- <button id="prevButton" type="button" class="btn-page btn border rounded bg-white" onclick="prevPage()">Back</button> -->
@@ -157,16 +157,13 @@
 
           // Compute paging
           let npage = document.getElementById("npage");
-          npage.innerHTML = npage.innerHTML.replace("N", order.length + 2);
+          npage.innerHTML = npage.innerHTML.replace("N", order.length + 4);
 
           let ppage = document.getElementById("ppage");
           ppage.style.width = (1/(order.length + 2) * 100) + "%";
 
-          let submitForm = document.getElementById('submitForm');
-          submitForm.action = 'http://{{ sever_name }}/evaluate/' + experiment + '/' + order[0];
-
           // Init next_piece variable
-          localStorage.setItem("piece_index", 0);
+          localStorage.setItem("test_index", 1);
           localStorage.setItem("experiment", experiment);
           localStorage.setItem("order", order);
       }

@@ -12,9 +12,6 @@
     <!-- Local CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 
-    <!-- Load external libs -->
-    <script src="{{ url_for('static', filename='js/lib/howler.js') }}"></script>
-
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
@@ -416,7 +413,27 @@
 
             let question5Answer = localStorage.getItem(piece + "_q5");
             $('#profile-form').append('<input type="hidden" name="' + piece + "_q5" + '" value="' + question5Answer + '" />');
+
+            let explAnswer = localStorage.getItem(piece + "_expl");
+            $('#profile-form').append('<input type="hidden" name="' + piece + "_expl" + '" value="' + explAnswer + '" />');
         }
-    }
+
+        for (let testIndex = 1; testIndex <= 2; testIndex++) {
+            let question1Answer = localStorage.getItem("test_" + testIndex + "_q1");
+            $('#profile-form').append('<input type="hidden" name="' + "test_" + testIndex + "_q1" + '" value="' + question1Answer + '" />');
+
+            let question2Answer = localStorage.getItem("test_" + testIndex + "_q2");
+            $('#profile-form').append('<input type="hidden" name="' + "test_" + testIndex + "_q2" + '" value="' + question2Answer + '" />');
+
+            let question3Answer = localStorage.getItem("test_" + testIndex + "_q3");
+            $('#profile-form').append('<input type="hidden" name="' + "test_" + testIndex + "_q3" + '" value="' + question3Answer + '" />');
+
+            let question4Answer = localStorage.getItem("test_" + testIndex + "_q4");
+            $('#profile-form').append('<input type="hidden" name="' + "test_" + testIndex + "_q4" + '" value="' + question4Answer + '" />');
+
+            let question5Answer = localStorage.getItem("test_" + testIndex + "_q5");
+            $('#profile-form').append('<input type="hidden" name="' + "test_" + testIndex + "_q5" + '" value="' + question5Answer + '" />');
+        }
+     }
   </script>
 </html>

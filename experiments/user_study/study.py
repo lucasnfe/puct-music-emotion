@@ -1,5 +1,6 @@
 import os
 import argparse
+import random
 from pymongo import MongoClient
 
 # Define host name
@@ -10,8 +11,8 @@ database_url = "localhost:27017"
 database = MongoClient(database_url)
 
 # Create database
-mydb = database["user_study"]
-experiments_col = database["user_study"]["experiments"]
+mydb = database["user_study_test"]
+experiments_col = database["user_study_test"]["experiments"]
 
 def traverse_dir(
         root_dir,
@@ -60,13 +61,15 @@ def retrieve_study(file_list):
     for f in audio_files:
         f_basename = os.path.splitext(os.path.basename(f))[0]
 
+        print(f_basename)
+
         experiment_emotion = f_basename.split('_')[0]
-        experiment_system = f_basename.split('_')[1]
+        experiment_system = f_basename.split('_')[2]
         experiment_index = f_basename.split('_')[3]
 
-        experiment_key = (experiment_emotion, experiment_index)
+        experiment_key = (experiment_system, experiment_index)
         if experiment_key not in study:
-            study[experiment_key] = {'_id': '{}_{}'.format(experiment_emotion, experiment_index),  'emotion': experiment_emotion, 'pieces': []}
+            study[experiment_key] = {'_id': '{}_{}'.format(experiment_system, experiment_index),  'system': experiment_system, 'pieces': []}
 
         study[experiment_key]['pieces'].append(f)
 
@@ -80,15 +83,23 @@ def retrieve_study(file_list):
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser(description='pairwise.py')
-    parser.add_argument('--path_indir', type=str, required=True, help="Path to input midi pieces.")
+    parser.add_argument('--path_audio', type=str, required=True, help="Path to input midi pieces.")
+    parser.add_argument('--path_test', type=str, required=True, help="Path to test midi pieces.")
     args = parser.parse_args()
 
     audio_files = traverse_dir(
-        args.path_indir,
+        args.path_audio,
         is_sort=True,
         extension='mp3')
 
     study = retrieve_study(audio_files)
 
+    test_files = traverse_dir(
+        args.path_test,
+        is_sort=True,
+        extension='mp3')
+
     for experiment in study:
+        # Include test piece in the experiment
+        study[experiment]['piece_t'] = random.choice(test_files)
         experiments_col.insert_one(study[experiment])

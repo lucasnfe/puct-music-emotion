@@ -5,13 +5,12 @@ from flask import Flask
 from flask import request, jsonify
 from flask import abort
 from flask import render_template, redirect, url_for
-from analyze import legit_evaluation
 
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
 # Define host name
-sever_name="192.168.1.67:4999"
+sever_name="haai.cs.ualberta.ca:5000"
 
 # Connect with database
 database_url = "localhost:27017"

@@ -1,4 +1,5 @@
 import os
+import csv
 import argparse
 import numpy as np
 
@@ -12,100 +13,179 @@ sever_name="localhost:5000"
 database_url = "localhost:27017"
 database = MongoClient(database_url)
 
-pairs_col = database["user_study"]["pairs_v2"]
-quality_col = database["user_study"]["quality_v2"]
+experiments_col = database["user_study_test"]["experiments"]
+results_col = database["user_study_test"]["results"]
 
-def legit_evaluation(evaluation, min_just_len=5):
-    test_quality = int(evaluation["test_quality"])
-    test_system1 = evaluation["test_piece1"].split("/")[-1].split(".")[0]
-    test_system2 = evaluation["test_piece2"].split("/")[-1].split(".")[0]
+tests = {"static/test/e2_real_human_4.mp3": "test_1",
+         "static/test/e4_real_human_2.mp3": "test_2"}
 
-    justification = evaluation["justification"]
-    test_justification = evaluation["test_justification"]
 
-    # Test cant be a tie
-    if test_quality == 2:
-        return False
+pieces = ('piece_1', 'piece_2', 'piece_3', 'piece_4')
 
-    if test_system1 == "test_human" and test_quality > 2:
-        return False
+systems = {
+        'mcts' : {'v1': [], 'v0': [], 'a1': [], 'a0': [], 'h': [], 'r':[], 'o': []}, 
+        'sbbs' : {'v1': [], 'v0': [], 'a1': [], 'a0': [], 'h': [], 'r':[], 'o': []}, 
+        'human': {'v1': [], 'v0': [], 'a1': [], 'a0': [], 'h': [], 'r':[], 'o': []}, 
+        'remi' : {'v1': [], 'v0': [], 'a1': [], 'a0': [], 'h': [], 'r':[], 'o': []}, 
+}
 
-    if test_system2 == "test_human" and test_quality < 2:
-        return False
+profile = {
+        'ethnicity': [],
+        'language' : [],
+        'age'      : [],
+        'gender'   : [],
+        'xp'       : [],
+        'comments' : []
+}
 
-    if len(test_justification.split(" ")) < min_just_len:
-        return False
+def is_valid_experiment(experiment, results):
+    test_id = tests[experiment['piece_t']]
 
-    if len(justification.split(" ")) < min_just_len:
-        return False
+    test_q1 = int(results['{}_{}'.format(test_id, 'q1')]) 
+    test_q2 = int(results['{}_{}'.format(test_id, 'q2')]) 
+    test_q3 = int(results['{}_{}'.format(test_id, 'q3')]) 
+    test_q4 = int(results['{}_{}'.format(test_id, 'q4')]) 
+    test_q5 = int(results['{}_{}'.format(test_id, 'q5')]) 
+    
+    piecet_q1 = int(results['piece_t_{}'.format('q1')]) 
+    piecet_q2 = int(results['piece_t_{}'.format('q2')]) 
+    piecet_q3 = int(results['piece_t_{}'.format('q3')]) 
+    piecet_q4 = int(results['piece_t_{}'.format('q4')]) 
+    piecet_q5 = int(results['piece_t_{}'.format('q5')]) 
 
-    return True
+    q1_hit = False 
+    if (test_q1 > 3 and piecet_q1 > 3) or (test_q1 < 3 and  piecet_q1 < 3):
+        q1_hit = True
+
+    q2_hit = False 
+    if (test_q2 > 3 and piecet_q2 > 3) or (test_q2 < 3 and  piecet_q2 < 3):
+        q2_hit = True
+
+    q3_hit = False 
+    if (test_q3 > 3 and piecet_q3 > 3) or (test_q3 < 3 and  piecet_q3 < 3):
+        q3_hit = True
+
+    explanations = []
+    for p in pieces:
+        expl = results['{}_expl'.format(p)]
+        explanations.append(expl)
+
+    explanations_validation = len(set(explanations)) == len(pieces)
+    return (q1_hit and q2_hit and q3_hit) and explanations_validation
 
 if __name__ == "__main__":
-    # Parse arguments
-    parser = argparse.ArgumentParser(description='analyze.py')
-    # parser.add_argument('--midi', type=str, required=True, help="Path to midi data.")
-    # parser.add_argument('--intro', type=str, required=True, help="Path to intro data.")
-    opt = parser.parse_args()
+    results = results_col.find({})
+    experiments = experiments_col.find({})
 
-    results_aggregate = {}
-    results_between_systems = {}
-    for evaluation in quality_col.find({}):
-        # Retrieve pair data
-        system1 = evaluation["piece1"].split("/")[3]
-        system2 = evaluation["piece2"].split("/")[3]
+    total_valid = 0
+    total_experiments = 0
 
-        # Filter evaluation
-        if not legit_evaluation(evaluation):
-            continue
+    for e in experiments:
+        experiment_results = results_col.find({'experiment_id': e['_id']})
+        experiment_results_count = results_col.count_documents({'experiment_id': e['_id']})
+        
+        valid_results = 0
+        for r in experiment_results:
+            try:
+                if not is_valid_experiment(e, r):
+                    continue
+            except:
+                continue
 
-        # Process result
-        quality = int(evaluation["quality"])
+            # Get profile data
+            profile['ethnicity'].append(r['ethnicity'])
+            profile['language'].append(r['language'])
+            profile['age'].append(2022 - int(r['year']))
+            profile['xp'].append(int(r['xp']))
+            profile['comments'].append(r['comments'])
 
-        if system1 not in results_aggregate:
-            results_aggregate[system1] = {"wins": 0, "ties": 0, "losses": 0}
+            for p in pieces:
+                piece_emotion = os.path.basename(e[p]).split('.')[0].split('_')[0]
+                piece_system = os.path.basename(e[p]).split('.')[0].split('_')[2]
+                
+                try:
+                    q1 = int(r['{}_q1'.format(p)])
+                    q2 = int(r['{}_q2'.format(p)])
 
-        if system2 not in results_aggregate:
-            results_aggregate[system2] = {"wins": 0, "ties": 0, "losses": 0}
+                    # high valence
+                    if piece_emotion  == 'e1' or piece_emotion == 'e4':
+                        systems[piece_system]['v1'].append(q1)
 
-        if (system1, system2) not in results_between_systems:
-            results_between_systems[(system1, system2)] = {"wins": 0, "ties": 0, "losses": 0}
+                    # low valence
+                    if piece_emotion == 'e2' or piece_emotion  == 'e3':
+                        systems[piece_system]['v0'].append(q1)
 
-        if quality == 2:
-            results_aggregate[system1]["ties"] += 1
-            results_aggregate[system2]["ties"] += 1
-            results_between_systems[(system1, system2)]["ties"] += 1
-        elif quality < 2:
-            results_aggregate[system1]["wins"] += 1
-            results_aggregate[system2]["losses"] += 1
-            results_between_systems[(system1, system2)]["wins"] += 1
-        elif quality > 2:
-            results_aggregate[system1]["losses"] += 1
-            results_aggregate[system2]["wins"] += 1
-            results_between_systems[(system1, system2)]["losses"] += 1
+                    # high arousal
+                    if piece_emotion == 'e1' or piece_emotion == 'e2':
+                        systems[piece_system]['a1'].append(q2)
 
-    for system in results_aggregate:
-        print(system, results_aggregate[system])
+                    # low arousal
+                    if piece_emotion  == 'e3' or piece_emotion == 'e4':
+                        systems[piece_system]['a0'].append(q2)
 
-    print("====")
-    for system_pair in results_between_systems:
-        print(system_pair, results_between_systems[system_pair])
+                    q3 = int(r['{}_q3'.format(p)])
+                    q4 = int(r['{}_q4'.format(p)])
+                    q5 = int(r['{}_q5'.format(p)])
+                    
+                    systems[piece_system]['h'].append(q3)
+                    systems[piece_system]['r'].append(q4)
+                    systems[piece_system]['o'].append(q5)
+                    
+                except:
+                    print('Invalid experiment')
 
-    combined_pairs = {}
-    for system1 in results_aggregate:
-        for system2 in results_aggregate:
-            if (system1, system2) in results_between_systems:
-                if (system1, system2) not in combined_pairs and (system2, system1) not in combined_pairs:
-                    combined_pairs[(system1, system2)] = {"wins": 0, "ties": 0, "losses": 0}
+            valid_results += 1
 
-                    scores1 = list(results_between_systems[(system1, system2)].values())
-                    scores2 = list(results_between_systems[(system2, system1)].values())
-                    total = np.array(scores1) + np.array(scores2[::-1])
+        print('> Experiment {}: {}/{}'.format(e['_id'], valid_results, experiment_results_count))
+    
+        total_valid += valid_results
+        total_experiments += experiment_results_count
 
-                    combined_pairs[(system1, system2)]["wins"] = total[0]
-                    combined_pairs[(system1, system2)]["ties"] = total[1]
-                    combined_pairs[(system1, system2)]["losses"] = total[2]
+    print("Experimentns (valid,total):", total_valid, total_experiments)
 
-    print("====")
-    for pair in combined_pairs:
-        print(pair, combined_pairs[pair])
+def save_field(systems, field, filename):
+    max_len = max(len(systems['mcts'][field]), 
+                  len(systems['human'][field]), 
+                  len(systems['sbbs'][field]), 
+                  len(systems['remi'][field]))
+    
+    header = ['human', 'mcts', 'sbbs', 'remi']
+    with open(filename, 'w', encoding='UTF8') as f:
+        writer = csv.writer(f)
+    
+        # write the header
+        writer.writerow(header)
+    
+        row = []
+        for i in range(max_len):
+            mcts_i = None
+            if i < len(systems['mcts'][field]):
+                mcts_i = systems['mcts'][field][i]
+            
+            human_i = None
+            if i < len(systems['human'][field]):
+                human_i = systems['human'][field][i]
+    
+            sbbs_i = None
+            if i < len(systems['sbbs'][field]):
+                sbbs_i = systems['sbbs'][field][i]
+    
+            remi_i = None
+            if i < len(systems['remi'][field]):
+                remi_i = systems['remi'][field][i]
+    
+            row = [human_i, mcts_i, sbbs_i, remi_i] 
+    
+            writer.writerow(row)
+
+save_field(systems, 'v1', 'high_valence.csv')
+save_field(systems, 'v0', 'low_valence.csv')
+save_field(systems, 'a1', 'high_arousal.csv')
+save_field(systems, 'a0', 'low_arousal.csv')
+save_field(systems, 'h', 'humaness.csv')
+save_field(systems, 'r', 'richness.csv')
+save_field(systems, 'o', 'overall_quality.csv')
+
+print('Profile:')
+print('> Average Age:', np.mean(profile['age']), np.std(profile['age']))
+print('> Average Music Experience:', np.mean(profile['xp']), np.std(profile['xp']))

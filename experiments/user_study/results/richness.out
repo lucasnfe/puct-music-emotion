@@ -1,0 +1,64 @@
+   Name     Mean       Std
+1 Human 4.115672 0.8059102
+2  MCTS 3.823864 0.9784529
+3  SBBS 3.479167 1.1066592
+4  REMI 3.656250 1.0096819
+
+	Kruskal-Wallis rank sum test
+
+data:  Value by Group
+Kruskal-Wallis chi-squared = 46.542, df = 3, p-value = 4.351e-10
+
+
+	Pairwise comparisons using Wilcoxon rank sum test with continuity correction 
+
+data:  Value and Group 
+
+     human   mcts   remi  
+mcts 0.0086  -      -     
+remi 1.4e-05 0.2038 -     
+sbbs 1.4e-09 0.0086 0.2038
+
+P value adjustment method: holm 
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (human, mcts)
+Z = 3.0258, p-value = 0.002421
+alternative hypothesis: true mu is not equal to 0
+
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (human, sbbs)
+Z = 6.3365, p-value = 1.237e-10
+alternative hypothesis: true mu is not equal to 0
+
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (human, remi)
+Z = 4.6889, p-value = 2.258e-06
+alternative hypothesis: true mu is not equal to 0
+
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (mcts, sbbs)
+Z = 3.0691, p-value = 0.002079
+alternative hypothesis: true mu is not equal to 0
+
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (mcts, remi)
+Z = 1.6363, p-value = 0.102
+alternative hypothesis: true mu is not equal to 0
+
+
+	Exact Wilcoxon-Mann-Whitney Test
+
+data:  Value by factor(Group) (remi, sbbs)
+Z = 1.3922, p-value = 0.1642
+alternative hypothesis: true mu is not equal to 0
+

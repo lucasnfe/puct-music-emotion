@@ -20,7 +20,8 @@ Our PUCT approach uses three neural models: a music language model (our "policy"
  python3 -u generate_mcts.py --lm trained/language_model.pth \ 
                              --clf trained/emotion_classifier.pth \ 
                              --disc trained/discriminator_classifier.pth \
-                             --emotion 1 --seq_len 1024 --p 0.9 --n_bars 16 \
+                             --emotion 1 --seq_len 1024 --n_bars 16 \
+                             --p 0.9 --c 1 --roll_steps 50  \
                              --save_to e1_mcts_1.mid
 ```
 

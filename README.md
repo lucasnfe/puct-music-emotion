@@ -1,7 +1,7 @@
 # Controlling Perceived Emotion in Symbolic Music Generation with Monte Carlo Tree Search
 
 This repository contains the source code to reproduce the results of the [AIIDE'22](https://sites.google.com/view/aiide-2022/)
-paper [Controlling Perceived Emotion in Symbolic Music Generation with Monte Carlo Tree Search](). This paper presents a new approach 
+paper [Controlling Perceived Emotion in Symbolic Music Generation with Monte Carlo Tree Search](https://arxiv.org/abs/2208.05162). This paper presents a new approach 
 for controlling emotion in symbolic music generation with Monte Carlo Tree Search. We use Monte Carlo Tree Search as a decoding 
 mechanism to steer the probability distribution learned by a language model towards a given emotion. At every step of the 
 decoding process, we use Predictor Upper Confidence for Trees (PUCT) to search for sequences that maximize the average values 

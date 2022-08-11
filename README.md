@@ -17,12 +17,12 @@ In this paper, we discretize the Circumplex (valence-arousal) model of emotion i
 Our PUCT approach uses three neural models: a music language model (our "policy" network), a music emotion classifier and a music discriminator (our "value" networks). The easiest way to reproduce the results is to [download the trained models](https://drive.google.com/drive/folders/1bgx-r2gFi6yFTFGTOZbnrxUVvue-Dold?usp=sharing) and run the following command:
 
 ```
- python3 -u generate_mcts.py --lm language_model_epoch_6.pth \ 
-                             --clf emotion_classifier_epoch_83.pth \ 
-                             --disc discriminator_epoch_3.pth \
-                             --emotion 1 --seq_len 1024 --n_bars 16 \
-                             --p 0.9 --c 1 --roll_steps 50  \
-                             --save_to e1_mcts_1.mid
+ python3 generate_mcts.py --lm language_model_epoch_6.pth \ 
+                          --clf emotion_classifier_epoch_83.pth 
+                          --disc discriminator_epoch_3.pth \
+                          --emotion 1 --seq_len 1024 --n_bars 16 \
+                          --p 0.9 --c 1 --roll_steps 50 \
+                          --save_to e1_mcts_1.mid
 ```
 
 This command will generate a piece with emotion E1 (--emotion 1) using PUCT and the trained models. This piece will be saved as a mid file names 'e1_mcts_1.mid'. To generate pieces with different emotions, change the value of the `--emotion` argument to 2, 3, or 4.

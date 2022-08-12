@@ -27,9 +27,21 @@ Our PUCT approach uses three neural models: a music language model (our "policy"
 
 The `generate_mcts.py` script will generate a piece with emotion E1 (--emotion 1) using PUCT and the trained models. This piece will be saved as a mid file names 'e1_mcts_1.mid'. To generate pieces with different emotions, change the value of the `--emotion` argument to 2, 3, or 4.
 
-## Training Models from Scratch
+## Training the Models
 
-#### Download VGMIDI data set
+To retrain the models from the data you will need to download and pre-process the VGMIDI dataset.
+
+### Get the VGMIDI Dataset 
+
+1. Download the VGMIDI dataset:
+
+```
+wget https://github.com/lucasnfe/vgmidi/releases/download/0.2/vgmidi_clean.zip
+```
+
+These pieces have been cleaned and include a set of pieces generated with Top-P sampling to train the discriminator model.
+
+2. Pre-process the data
 
 #### 1. Language Model
 

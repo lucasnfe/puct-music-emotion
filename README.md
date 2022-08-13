@@ -42,7 +42,7 @@ To retrain the models from the data you will need to download and pre-process th
 **1. Download the VGMIDI dataset**
 
 ```
-wget https://github.com/lucasnfe/vgmidi/releases/download/0.2/vgmidi_clean.zip
+wget https://github.com/lucasnfe/puct-music-emotion/releases/download/aiide22/vgmidi_clean.zip
 ```
 
 To simplify our music language modeling task, we trained the LM using only the VGMIDI pieces with 4/4 time signature. This subset 

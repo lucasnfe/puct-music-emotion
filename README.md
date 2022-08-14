@@ -54,7 +54,7 @@ has 2,520 pieces, of which we used 2,142 (85%) for training and 378 (15%) for te
 
 The pre-processing step consists of augmenting the data, encoding it with REMI and compiling the encoded pieces as a numpy array.
 
-**2.1 Data Augmentation**
+**2.1. Data Augmentation**
 
 All unlabelled pieces were augmented by (a) transposing to every key, (b) increasing and decreasing the tempo by 10%, and (c) increasing and decreasing the velocity of all notes by 10%, as Oore et al. (2017) described.
 
@@ -70,7 +70,7 @@ $ cp -r vgmidi_clean/labelled vgmidi_augmented/
 $ cp -r vgmidi_clean/fake_top_p vgmidi_augmented/
 ```
 
-**2.2 REMI Encoding**
+**2.2. REMI Encoding**
 
 We encoded all pieces using REMI (Huang and Yang 2020).
 
@@ -78,17 +78,33 @@ We encoded all pieces using REMI (Huang and Yang 2020).
 $ python3 encoder.py --path_indir vgmidi_augmented --path_outdir vgmidi_encoded
 ```
 
-**2.3 Compile all pieces in a numpy array.**
+**2.3. Compile pieces in a numpy array.**
+
+Compile the unlabelled pieces to train the language model:
 
 ```
-$ python3 compile.py --path_indir encoded --path_outdir encoded
+$ python3 compile.py --path_train_indir vgmidi_encoded/unlabelled/train --path_test_indir vgmidi_encoded/unlabelled/test --path_outdir vgmidi_compiled --max_len 1024 --task language_modeling
 ```
 
-#### 1. Language Model
+Compile the labelled pieces to train the music emotion classifier:
 
-#### 2. Train Emotion Classifier
+```
+$ python3 compile.py --path_train_indir vgmidi_encoded/labelled/train --path_test_indir vgmidi_encoded/labelled/test --path_outdir vgmidi_compiled --max_len 1024 --task emotion_classification
+```
 
-#### 3. Train Discriminator
+Compile the labelled pieces to train the music discriminator:
+
+```
+$ python3 compile.py --path_train_indir vgmidi_encoded/fake_top_p/train --path_test_indir vgmidi_encoded/fake_top_p/test --path_outdir vgmidi_compiled --max_len 1024 --task discriminator
+```
+
+**3. Train the models**
+
+**3.1. Language Model**
+
+**3.2. Train Emotion Classifier**
+
+**3.3. Train Discriminator**
 
 ## Citing this Work
 

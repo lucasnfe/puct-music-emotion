@@ -100,9 +100,27 @@ $ python3 compile.py --path_train_indir vgmidi_encoded/fake_top_p/train --path_t
 
 **3.1. Language Model**
 
+We trained a Linear Transformer LM (Katharopoulos et al. 2020) with 8 transformer blocks and a maximum sequence length of 1,024 tokens. We used 8 attention heads and an embedding layer of size 512. The size of the feedforward layers in each transformer block was set to 1,024. We optimized the LM weights with the Adam optimizer for 10 epochs with mini-batches of size 16 and a learning rate of 1 × 10−4. 
+
+```
+python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz --test ../dataset/vgmidi_compiled/language_modeling_test.npz --seq_len 1024 --save_to trained/language_model_epoch_{}.pth --epochs 10
+```
+
 **3.2. Train Emotion Classifier**
 
+We trained the emotion classifier by fine-tuning our Linear Transformer LM with an extra classification head. The emotion classifier was trained with the 200 labeled pieces of the VGMIDI data set. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
+
+```
+python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --out_size 4
+```
+
 **3.3. Train Discriminator**
+
+The discriminator was trained with 400 pieces, the 200 labeled pieces (real) of the VGMIDI data set, and the other 200 (fake) pieces generated via Top-p sampling with p = 0.9. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
+
+```
+python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --out_size 1
+```
 
 ## Citing this Work
 

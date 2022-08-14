@@ -35,11 +35,9 @@ The `generate_mcts.py` script will generate a piece with emotion E1 (--emotion 1
 
 ## Training the Models
 
-To retrain the models from the data you will need to download and pre-process the VGMIDI dataset.
-
-### VGMIDI Dataset 
-
 **1. Download the VGMIDI dataset**
+
+To retrain the models from the data you will need to download and pre-process the VGMIDI dataset.
 
 ```
 $ cd dataset

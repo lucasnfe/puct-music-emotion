@@ -42,7 +42,9 @@ To retrain the models from the data you will need to download and pre-process th
 **1. Download the VGMIDI dataset**
 
 ```
-wget https://github.com/lucasnfe/puct-music-emotion/releases/download/aiide22/vgmidi_clean.zip
+$ cd dataset
+$ wget https://github.com/lucasnfe/puct-music-emotion/releases/download/aiide22/vgmidi_clean.zip
+$ unzip vgmidi_clean.zip
 ```
 
 To simplify our music language modeling task, we trained the LM using only the VGMIDI pieces with 4/4 time signature. This subset 
@@ -57,15 +59,15 @@ The pre-processing step consists of augmenting the data, encoding it with REMI a
 All unlabelled pieces were augmented by (a) transposing to every key, (b) increasing and decreasing the tempo by 10%, and (c) increasing and decreasing the velocity of all notes by 10%, as Oore et al. (2017) described.
 
 ```
-python3 augment.py --path_indir clean/unlabelled --path_outdir augmented/unlabelled
+$ python3 augment.py --path_indir vgmidi_clean/unlabelled --path_outdir vgmidi_augmented/unlabelled
 ```
 
 Only the unlabelled pieces are augmented. We don't augmented the labelled pieces because augmented versions might not have the same emotion of the original ones. To keep all pieces in the same directory, copy the labelled and generated peices to the `augmented` directory.
 
 
 ```
-cp -r clean/labelled augmented/
-cp -r clean/fake_top_p augmented/
+$ cp -r vgmidi_clean/labelled vgmidi_augmented/
+$ cp -r vgmidi_clean/fake_top_p vgmidi_augmented/
 ```
 
 **2.2 REMI Encoding**
@@ -73,15 +75,13 @@ cp -r clean/fake_top_p augmented/
 We encoded all pieces using REMI (Huang and Yang 2020).
 
 ```
-python3.6 encoder.py --path_indir augmented --path_outdir encoded
+$ python3 encoder.py --path_indir vgmidi_augmented --path_outdir vgmidi_encoded
 ```
 
 **2.3 Compile all pieces in a numpy array.**
 
-We kept only the first 16 bars of each encoded piece.
-
 ```
-python3.6 compile.py --path_indir encoded --path_outdir encoded
+$ python3 compile.py --path_indir encoded --path_outdir encoded
 ```
 
 #### 1. Language Model

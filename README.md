@@ -111,7 +111,7 @@ python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz 
 We trained the emotion classifier by fine-tuning our Linear Transformer LM with an extra classification head. The emotion classifier was trained with the 200 labeled pieces of the VGMIDI data set. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
 
 ```
-python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --out_size 4
+python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 4
 ```
 
 **3.3. Train Discriminator**
@@ -119,7 +119,7 @@ python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classific
 The discriminator was trained with 400 pieces, the 200 labeled pieces (real) of the VGMIDI data set, and the other 200 (fake) pieces generated via Top-p sampling with p = 0.9. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
 
 ```
-python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --out_size 1
+python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 1 
 ```
 
 ## Citing this Work

@@ -23,12 +23,12 @@ pip install requirements.txt
 Our PUCT approach uses three neural models: a music language model (our "policy" network), a music emotion classifier and a music discriminator (our "value" networks). The easiest way to reproduce the results is to [download the trained models](https://drive.google.com/drive/folders/1bgx-r2gFi6yFTFGTOZbnrxUVvue-Dold?usp=sharing) and run the `generate_mcts.py` script from the `workspace` folder:
 
 ```
- python3 generate_mcts.py --lm language_model_epoch_6.pth \ 
-                          --clf emotion_classifier_epoch_83.pth 
-                          --disc discriminator_epoch_3.pth \
-                          --emotion 1 --seq_len 1024 --n_bars 16 \
-                          --p 0.9 --c 1 --roll_steps 50 \
-                          --save_to e1_mcts_1.mid
+$ python3 generate_mcts.py --lm language_model_epoch_6.pth \ 
+                           --clf emotion_classifier_epoch_83.pth 
+                           --disc discriminator_epoch_3.pth \
+                           --emotion 1 --seq_len 1024 --n_bars 16 \
+                           --p 0.9 --c 1 --roll_steps 50 \
+                           --save_to e1_mcts_1.mid
 ```
 
 The `generate_mcts.py` script will generate a piece with emotion E1 (--emotion 1) using PUCT and the trained models. This piece will be saved as a mid file names 'e1_mcts_1.mid'. To generate pieces with different emotions, change the value of the `--emotion` argument to 2, 3, or 4.
@@ -103,7 +103,7 @@ $ python3 compile.py --path_train_indir vgmidi_encoded/fake_top_p/train --path_t
 We trained a Linear Transformer LM (Katharopoulos et al. 2020) with 8 transformer blocks and a maximum sequence length of 1,024 tokens. We used 8 attention heads and an embedding layer of size 512. The size of the feedforward layers in each transformer block was set to 1,024. We optimized the LM weights with the Adam optimizer for 10 epochs with mini-batches of size 16 and a learning rate of 1 × 10−4. 
 
 ```
-python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz --test ../dataset/vgmidi_compiled/language_modeling_test.npz --seq_len 1024 --save_to trained/language_model_epoch_{}.pth --epochs 10
+$ python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz --test ../dataset/vgmidi_compiled/language_modeling_test.npz --seq_len 1024 --save_to trained/language_model_epoch_{}.pth --epochs 10
 ```
 
 **3.2. Train Emotion Classifier**
@@ -111,7 +111,7 @@ python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz 
 We trained the emotion classifier by fine-tuning our Linear Transformer LM with an extra classification head. The emotion classifier was trained with the 200 labeled pieces of the VGMIDI data set. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
 
 ```
-python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 4
+$ python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 4
 ```
 
 **3.3. Train Discriminator**
@@ -119,7 +119,7 @@ python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classific
 The discriminator was trained with 400 pieces, the 200 labeled pieces (real) of the VGMIDI data set, and the other 200 (fake) pieces generated via Top-p sampling with p = 0.9. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
 
 ```
-python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 1 
+$ python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 1 
 ```
 
 ## Citing this Work

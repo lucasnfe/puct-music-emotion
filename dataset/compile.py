@@ -124,8 +124,8 @@ if __name__ == '__main__':
         print(' >  test y:', test_labels.shape)
 
         # Save datasets
-        path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
-        path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
+        path_train_outfile = os.path.join(args.path_outdir, args.task + '_train.npz')
+        path_test_outfile = os.path.join(args.path_outdir, args.task + '_test.npz')
 
         np.savez(path_train_outfile, x=train_pieces, y=train_labels)
         np.savez(path_test_outfile, x=test_pieces, y=test_labels)
@@ -138,8 +138,8 @@ if __name__ == '__main__':
         print(' >  test x:', test_pieces.shape)
 
         # Save datasets
-        path_train_outfile = os.path.join(args.path_outdir, 'train.npz')
-        path_test_outfile = os.path.join(args.path_outdir, 'test.npz')
+        path_train_outfile = os.path.join(args.path_outdir, args.task + '_train.npz')
+        path_test_outfile = os.path.join(args.path_outdir, args.task + '_test.npz')
 
         np.savez(path_train_outfile, x=train_pieces)
         np.savez(path_test_outfile, x=test_pieces)

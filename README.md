@@ -12,30 +12,115 @@ In this paper, we discretize the Circumplex (valence-arousal) model of emotion i
 | [Piece e2_1](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e1_fake_mcts_8.mp3)  | [Piece e2_2](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e2_fake_mcts_4.mp3)  | [Piece e3_2](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e3_fake_mcts_1.mp3)  | [Piece e4_2](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e4_fake_mcts_2.mp3) | 
 | [Piece e3_3](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e1_fake_mcts_10.mp3)  | [Piece e2_3](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e2_fake_mcts_7.mp3)  | [Piece e3_3](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e3_fake_mcts_17.mp3)  | [Piece e4_3](https://raw.githubusercontent.com/lucasnfe/aiide22/main/experiments/user_study/static/audio/mcts/e4_fake_mcts_3.mp3) | 
 
+## Dependencies
+
+```
+pip install requirements.txt
+```
+
 ## Reproducing Results
 
 Our PUCT approach uses three neural models: a music language model (our "policy" network), a music emotion classifier and a music discriminator (our "value" networks). The easiest way to reproduce the results is to [download the trained models](https://drive.google.com/drive/folders/1bgx-r2gFi6yFTFGTOZbnrxUVvue-Dold?usp=sharing) and run the `generate_mcts.py` script from the `workspace` folder:
 
 ```
- python3 generate_mcts.py --lm language_model_epoch_6.pth \ 
-                          --clf emotion_classifier_epoch_83.pth 
-                          --disc discriminator_epoch_3.pth \
-                          --emotion 1 --seq_len 1024 --n_bars 16 \
-                          --p 0.9 --c 1 --roll_steps 50 \
-                          --save_to e1_mcts_1.mid
+$ python3 generate_mcts.py --lm language_model_epoch_6.pth \ 
+                           --clf emotion_classifier_epoch_83.pth 
+                           --disc discriminator_epoch_3.pth \
+                           --emotion 1 --seq_len 1024 --n_bars 16 \
+                           --p 0.9 --c 1 --roll_steps 50 \
+                           --save_to e1_mcts_1.mid
 ```
 
 The `generate_mcts.py` script will generate a piece with emotion E1 (--emotion 1) using PUCT and the trained models. This piece will be saved as a mid file names 'e1_mcts_1.mid'. To generate pieces with different emotions, change the value of the `--emotion` argument to 2, 3, or 4.
 
-## Training Models from Scratch
+## Training the Models
 
-#### Download VGMIDI data set
+**1. Download the VGMIDI dataset**
 
-#### 1. Language Model
+To retrain the models from the data you will need to download and pre-process the VGMIDI dataset.
 
-#### 2. Train Emotion Classifier
+```
+$ cd dataset
+$ wget https://github.com/lucasnfe/puct-music-emotion/releases/download/aiide22/vgmidi_clean.zip
+$ unzip vgmidi_clean.zip
+```
 
-#### 3. Train Emotion Classifier
+To simplify our music language modeling task, we trained the LM using only the VGMIDI pieces with 4/4 time signature. This subset 
+has 2,520 pieces, of which we used 2,142 (85%) for training and 378 (15%) for testing. We trained the emotion classifier with the 200 labeled pieces of the VGMIDI data set. We used 140 (70%) pieces for training and 60 (30%)for testing.  The discriminator was trained with 400 pieces, the 200 labeled pieces (real) of the VGMIDI data set, and other 200 (fake) pieces generated via Top-p sampling with p = 0.9.
+
+**2. Data Pre-processing**
+
+The pre-processing step consists of augmenting the data, encoding it with REMI and compiling the encoded pieces as a numpy array.
+
+**2.1. Data Augmentation**
+
+All unlabelled pieces were augmented by (a) transposing to every key, (b) increasing and decreasing the tempo by 10%, and (c) increasing and decreasing the velocity of all notes by 10%, as Oore et al. (2017) described.
+
+```
+$ python3 augment.py --path_indir vgmidi_clean/unlabelled --path_outdir vgmidi_augmented/unlabelled
+```
+
+Only the unlabelled pieces are augmented. We don't augmented the labelled pieces because augmented versions might not have the same emotion of the original ones. To keep all pieces in the same directory, copy the labelled and generated peices to the `augmented` directory.
+
+
+```
+$ cp -r vgmidi_clean/labelled vgmidi_augmented/
+$ cp -r vgmidi_clean/fake_top_p vgmidi_augmented/
+```
+
+**2.2. REMI Encoding**
+
+We encoded all pieces using REMI (Huang and Yang 2020).
+
+```
+$ python3 encoder.py --path_indir vgmidi_augmented --path_outdir vgmidi_encoded
+```
+
+**2.3. Compile pieces in a numpy array.**
+
+Compile the unlabelled pieces to train the language model:
+
+```
+$ python3 compile.py --path_train_indir vgmidi_encoded/unlabelled/train --path_test_indir vgmidi_encoded/unlabelled/test --path_outdir vgmidi_compiled --max_len 1024 --task language_modeling
+```
+
+Compile the labelled pieces to train the music emotion classifier:
+
+```
+$ python3 compile.py --path_train_indir vgmidi_encoded/labelled/train --path_test_indir vgmidi_encoded/labelled/test --path_outdir vgmidi_compiled --max_len 1024 --task emotion_classification
+```
+
+Compile the labelled pieces to train the music discriminator:
+
+```
+$ python3 compile.py --path_train_indir vgmidi_encoded/fake_top_p/train --path_test_indir vgmidi_encoded/fake_top_p/test --path_outdir vgmidi_compiled --max_len 1024 --task discriminator
+```
+
+**3. Train the models**
+
+**3.1. Language Model**
+
+We trained a Linear Transformer LM (Katharopoulos et al. 2020) with 8 transformer blocks and a maximum sequence length of 1,024 tokens. We used 8 attention heads and an embedding layer of size 512. The size of the feedforward layers in each transformer block was set to 1,024. We optimized the LM weights with the Adam optimizer for 10 epochs with mini-batches of size 16 and a learning rate of 1 × 10−4. 
+
+```
+$ python3 train.py --train ../dataset/vgmidi_compiled/language_modeling_train.npz --test ../dataset/vgmidi_compiled/language_modeling_test.npz --seq_len 1024 --save_to trained/language_model_epoch_{}.pth --epochs 10
+```
+
+**3.2. Train Emotion Classifier**
+
+We trained the emotion classifier by fine-tuning our Linear Transformer LM with an extra classification head. The emotion classifier was trained with the 200 labeled pieces of the VGMIDI data set. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
+
+```
+$ python3 train_classifier.py --train ../dataset/vgmidi_compiled/emotion_classification_train.npz --test ../dataset/vgmidi_compiled/emotion_classification_test.npz --seq_len 1024 --save_to trained/emotion_classifier_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 4
+```
+
+**3.3. Train Discriminator**
+
+The discriminator was trained with 400 pieces, the 200 labeled pieces (real) of the VGMIDI data set, and the other 200 (fake) pieces generated via Top-p sampling with p = 0.9. This model was optimized with the Adam optimizer for 100 epochs with mini-batches of size 16 and a learning rate of 1 × 10−5.
+
+```
+$ python3 train_classifier.py --train ../dataset/vgmidi_compiled/discriminator_train.npz --test ../dataset/vgmidi_compiled/discriminator_test.npz --seq_len 1024 --save_to trained/discriminator_epoch_{}.pth --epochs 100 --lr 1e-05 --out_size 1 
+```
 
 ## Citing this Work
 

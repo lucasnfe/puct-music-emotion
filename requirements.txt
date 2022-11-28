@@ -1,0 +1,8 @@
+chorder==0.1.4
+mido==1.2.10
+pretty-midi==0.2.9
+pytorch-fast-transformers==0.4.0
+plotext==5.0.2
+muspy==0.4.0
+torch==1.4.0
+torchvision==0.5.0
